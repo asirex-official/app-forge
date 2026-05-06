@@ -4,13 +4,11 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const links = [
-  { to: "/", label: "Home" },
-  { to: "/master", label: "Master" },
+  { to: "/admin", label: "Admin" },
   { to: "/projects", label: "Projects" },
   { to: "/files", label: "Files" },
-  { to: "/studio", label: "Studio" },
+  { to: "/master", label: "Master" },
   { to: "/builder", label: "Builder" },
-  { to: "/docs", label: "Docs" },
   { to: "/server", label: "Server" },
 ];
 
