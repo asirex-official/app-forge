@@ -1,23 +1,19 @@
 import {
   BookOpen, Cpu, Cloud, Smartphone, Code2, Server as ServerIcon,
-  CheckCircle2, AlertCircle, AlertTriangle, Github, FolderInput,
-  Package, Wand2, FileCode, Sparkles, ShieldAlert,
+  CheckCircle2, AlertCircle, AlertTriangle, Github, Package,
+  Wand2, FileCode, Sparkles, ShieldAlert,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import Layout from "@/components/site/Layout";
 
 /**
- * MASTER PROMPT PAGE
- * ------------------
- * Ye page permanent reference hai. AI / user kabhi bhi kholke padh sakta hai.
- * Pura plan, source code kaise lete hain, kya karte hain, kya NAHI karte —
- * sab yahan likha hai. Isse delete mat karna.
+ * MASTER PROMPT PAGE — v2 (Native pivot)
+ * Permanent reference. AI / user kabhi bhi padh sakta hai.
  */
 
 const Master = () => (
   <Layout>
     <section className="container py-12 max-w-4xl">
-      {/* Header */}
       <div className="flex items-center gap-3 mb-3">
         <div className="h-12 w-12 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center">
           <BookOpen className="h-6 w-6 text-primary" />
@@ -30,43 +26,34 @@ const Master = () => (
         Permanent reference. AI ya user bhool jaye toh isse padh ke turant yaad aa jayega.
       </p>
 
-      {/* 🚨 BIG WARNING — sabse upar */}
-      <Card className="p-6 mb-8 bg-red-500/10 border-2 border-red-500/40">
+      {/* PIVOT NOTE */}
+      <Card className="p-6 mb-8 bg-yellow-500/10 border-2 border-yellow-500/40">
         <div className="flex gap-4">
-          <ShieldAlert className="h-8 w-8 text-red-400 flex-shrink-0 mt-0.5" />
+          <ShieldAlert className="h-8 w-8 text-yellow-300 flex-shrink-0 mt-0.5" />
           <div>
-            <h2 className="text-xl font-bold text-red-300 mb-2">
-              ⚠️ SABSE ZAROORI RULE — ISKO MAT BHOOLNA
+            <h2 className="text-xl font-bold text-yellow-200 mb-2">
+              ⚡ BIG PIVOT — Capacitor OUT, Native Kotlin IN
             </h2>
             <p className="text-foreground leading-relaxed mb-3">
-              User <strong className="text-red-300">APK ka code edit karwana chahta hai</strong> —
-              uski <strong className="text-red-300">website ka code CHEDNA NAHI hai</strong>.
+              APKForge ab <strong className="text-yellow-200">Capacitor wrapper nahi banata</strong>.
+              Ab ye <strong className="text-yellow-200">REAL NATIVE Android app</strong> banata hai —
+              Kotlin + Jetpack Compose me, scratch se.
             </p>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Matlab: User apni working website (Binance clone, Zepto clone, etc.) ka source code dega.
-              Wo website <strong>untouched</strong> rahegi. Hum sirf uska <strong>mobile wrapper</strong>
-              (Capacitor config, manifest, icons, permissions, splash screen) edit karenge —
-              taaki APK ban sake. Website ka original code, components, pages, backend calls — kuch nahi badlega.
-            </p>
-            <div className="mt-4 grid sm:grid-cols-2 gap-3 text-sm">
+            <div className="grid sm:grid-cols-2 gap-3 text-sm">
               <div className="rounded-lg bg-red-500/5 border border-red-500/30 p-3">
-                <div className="font-semibold text-red-300 mb-1">❌ MAT KARO</div>
+                <div className="font-semibold text-red-300 mb-1">❌ PURANA (delete)</div>
                 <ul className="text-xs text-muted-foreground space-y-1">
-                  <li>• Website ke React components badalna</li>
-                  <li>• Backend API calls modify karna</li>
-                  <li>• Login/auth flow chedna</li>
-                  <li>• UI/UX redesign karna</li>
-                  <li>• Naye pages add karna website me</li>
+                  <li>• Capacitor / WebView wrapper</li>
+                  <li>• Website ko APK me wrap karna</li>
+                  <li>• Wrapper config edit karna</li>
                 </ul>
               </div>
               <div className="rounded-lg bg-green-500/5 border border-green-500/30 p-3">
-                <div className="font-semibold text-green-400 mb-1">✅ KARO</div>
+                <div className="font-semibold text-green-400 mb-1">✅ NAYA</div>
                 <ul className="text-xs text-muted-foreground space-y-1">
-                  <li>• <code>capacitor.config.ts</code> setup</li>
-                  <li>• App icon, splash screen</li>
-                  <li>• Android permissions</li>
-                  <li>• Package name, version</li>
-                  <li>• Build config (Gradle/Xcode)</li>
+                  <li>• AI website read kare (read-only)</li>
+                  <li>• AI Kotlin Compose code likhe scratch se</li>
+                  <li>• Mac pe Gradle se native APK build</li>
                 </ul>
               </div>
             </div>
@@ -78,126 +65,105 @@ const Master = () => (
       <Card className="p-6 bg-gradient-card border-border/60 mb-6">
         <h2 className="text-2xl font-bold mb-4">🎯 The Big Idea</h2>
         <p className="text-muted-foreground leading-relaxed mb-3">
-          User ke paas already <strong className="text-foreground">working websites ka source code</strong> hai —
-          backend, login, database, OTP, Google sign-in, payments — sab kaam karta hai.
+          User ke paas <strong className="text-foreground">working website</strong> hai (React/Next/etc) —
+          backend, login, OTP, payments sab kaam karta hai.
         </p>
         <p className="text-muted-foreground leading-relaxed">
-          Mujhe chahiye: us source code ko <strong className="text-foreground">jaisa hai waisa</strong> rakh ke,
-          uske upar Capacitor wrapper laga ke <strong className="text-foreground">real Android APK + iOS .ipa</strong>
-          bana dena — Amazon, Zepto, Binance ki actual native apps jaisi.
+          Hum us website ka source <strong className="text-foreground">read-only</strong> padhte hain →
+          AI usse equivalent <strong className="text-foreground">Kotlin + Jetpack Compose</strong> me likhta hai →
+          Mac pe Gradle build karta hai → <strong className="text-foreground">real native Android APK</strong>.
+          Backend wahi rahega — Kotlin app Retrofit se same APIs call karega.
         </p>
       </Card>
 
-      {/* SOURCE CODE — KAHAN SE LETE HAIN */}
+      {/* SOURCE INPUT */}
       <Card className="p-6 bg-gradient-card border-border/60 mb-6">
         <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-          <FolderInput className="h-6 w-6 text-primary" /> Source Code Kahan Se Lete Hain?
+          <Package className="h-6 w-6 text-primary" /> Source Code Input — sirf 2 tarike
         </h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          User 4 me se kisi bhi tarike se source code de sakta hai. AI ko <strong>poochna chahiye</strong>
-          aur jis tarike se mile, usi se uthana hai.
-        </p>
         <div className="grid sm:grid-cols-2 gap-3">
           <SourceMethod
             icon={<Github className="h-5 w-5" />}
-            title="1. GitHub link"
-            desc="https://github.com/user/repo — sabse easy. AI bata sakta hai user ko: 'git clone <link>' Mac pe chalao."
+            title="1. GitHub URL"
+            desc="Builder → Import → GitHub URL paste → server git clone karke ~/.apkforge/sources/<id> me daal deta hai."
           />
           <SourceMethod
             icon={<Package className="h-5 w-5" />}
             title="2. ZIP upload"
-            desc="User ZIP file chat me drag-drop kar de. AI use unzip karke padh sakta hai."
-          />
-          <SourceMethod
-            icon={<Sparkles className="h-5 w-5" />}
-            title="3. Doosra Lovable project"
-            desc="Agar source code bhi Lovable pe hai → @mention karke ya project ka naam batake AI cross_project tools se directly access kar leta hai."
-          />
-          <SourceMethod
-            icon={<FileCode className="h-5 w-5" />}
-            title="4. Folder path on Mac"
-            desc="Source code already Mac pe hai (e.g. ~/projects/binance). User path bata de, AI build server use karke usse pick kar lega."
+            desc="Builder → Import → ZIP drag-drop → server extract karke same folder me daal deta hai."
           />
         </div>
       </Card>
 
-      {/* HOW WE DO IT — STEP BY STEP */}
+      {/* HOW WE DO IT */}
       <Card className="p-6 bg-gradient-card border-border/60 mb-6">
         <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-          <Wand2 className="h-6 w-6 text-primary" /> Kaise Karte Hain (Step by Step)
+          <Wand2 className="h-6 w-6 text-primary" /> Step by Step Workflow
         </h2>
         <ol className="space-y-4">
-          <Step n={1} title="User source code ka location deta hai">
-            GitHub link / ZIP / Lovable project naam / Mac folder path. AI poochta hai sirf yahi 4 me se ek.
+          <Step n={1} title="Project banao /projects pe">
+            App name + package name (com.you.app) daalo.
           </Step>
-          <Step n={2} title="AI source code 'read-only' mode me padhta hai">
-            Sirf <strong>samajhne</strong> ke liye — kaunse pages hain, kaunse routes,
-            backend kahan hai, login kaisa hai. <strong className="text-red-300">Kuch edit nahi karta us code me.</strong>
+          <Step n={2} title="Builder → Source import">
+            GitHub URL ya ZIP upload. Server clone/extract karega Mac pe.
           </Step>
-          <Step n={3} title="AI APKForge me Capacitor wrapper banata hai">
-            Yahan <strong>is</strong> project (APKForge) ke andar, ek build job create hota hai jisme:
-            app name, package name (com.you.app), icon, splash, permissions, version — sab set hote hain.
-            <strong className="text-foreground"> User ki website ka code touch nahi hota.</strong>
+          <Step n={3} title="Chat me bolo: AI source padho">
+            Main (Lovable editor AI) source files padhunga, framework detect karunga, screens/routes/API list banaunga.
           </Step>
-          <Step n={4} title="Mac pe local server build chalata hai">
-            APKForge ka Express server (port 5174) Mac pe pehle se chal raha hai (one-time setup).
-            Wo user ki website ko Capacitor me wrap karta hai aur Gradle/Xcode se compile karta hai.
+          <Step n={4} title="Chat me bolo: Kotlin generate karo">
+            Main Kotlin Activities + Compose screens + Retrofit interfaces likhunga, files <code className="bg-secondary px-1 rounded text-xs">project.kotlinFiles</code> me daal dunga.
           </Step>
-          <Step n={5} title="Real .apk / .ipa file ban jaati hai">
-            Pehli build 5-10 min, baad me 30-90 sec. APK browser me download link aata hai.
+          <Step n={5} title="Builder → Build Native APK">
+            Mac server scaffold create karega, AI files overlay karega, <code className="bg-secondary px-1 rounded text-xs">./gradlew assembleDebug</code> chalayega.
           </Step>
-          <Step n={6} title="Phone pe install → real working app">
-            Wahi backend, wahi login, wahi sab features — bas ab native app me. Play Store / App Store ready.
+          <Step n={6} title="Real native APK download">
+            Pehli build 10-15 min (Gradle dependencies download). Baad me 1-2 min.
           </Step>
         </ol>
       </Card>
 
       {/* WHO DOES WHAT */}
       <Card className="p-6 bg-gradient-card border-border/60 mb-6">
-        <h2 className="text-2xl font-bold mb-4">👥 Kiska Kya Role Hai</h2>
+        <h2 className="text-2xl font-bold mb-4">👥 Roles</h2>
         <div className="grid gap-4">
           <Role
             icon={<Cloud className="h-5 w-5" />}
-            title="Lovable (cloud server)"
+            title="Lovable (cloud)"
             color="text-blue-400"
             does={[
-              "Chat (AI ke saath baat)",
-              "Live preview website host karna (APKForge UI)",
-              "Code edits karna (sirf APKForge ka, user ki website ka NAHI)",
+              "Chat (mere saath baat)",
+              "Builder UI host karta hai",
+              "Project state (localStorage) hold karta hai",
             ]}
-            doesNot={[
-              "APK build NAHI karta — RAM/CPU nahi deta uske liye",
-              "User ki original website ka code NAHI badalta",
-            ]}
+            doesNot={["Code generate NAHI karta khud — main karta hu", "APK build NAHI karta"]}
           />
           <Role
             icon={<Cpu className="h-5 w-5" />}
-            title="User ki MacBook (local)"
+            title="User ki Mac"
             color="text-green-400"
             does={[
-              "Local build server chalata hai (port 5174)",
-              "Capacitor + Gradle + Xcode run karta hai",
-              "CPU / RAM / GPU yahan use hota hai",
-              "Real .apk / .ipa file generate karta hai",
-              "Source code yahan rahega (clone karke)",
+              "Express server port 5174 chalata hai",
+              "Source clone/extract",
+              "Native Android Studio project scaffold",
+              "Gradle build (CPU/RAM/disk yahan use)",
+              "Real .apk file generate",
             ]}
-            doesNot={[
-              "UI host nahi karta — wo Lovable preview se aata hai",
-            ]}
+            doesNot={["UI host nahi karta", "AI nahi chalata"]}
           />
           <Role
             icon={<Code2 className="h-5 w-5" />}
-            title="Lovable AI (main, ye chat)"
+            title="Lovable Editor AI (main)"
             color="text-primary"
             does={[
-              "User ka source code padhna aur samajhna (read-only)",
-              "APKForge ka Capacitor config tweak karna",
-              "Build commands Mac pe trigger karne ke liye batana",
-              "Errors troubleshoot karna",
+              "Source code padhna (read-only) — server ke /source endpoints se",
+              "Kotlin + Compose files generate karna",
+              "Builder config update karna",
+              "Errors troubleshoot",
             ]}
             doesNot={[
-              "User ki website ka code edit NAHI karta",
-              "Khud APK build nahi karta — wo Mac pe hota hai",
+              "User ki website code edit NAHI — sirf padhna",
+              "Khud APK build nahi karta — Mac pe hota hai",
+              "App ke andar koi end-user AI feature nahi banata",
             ]}
           />
         </div>
@@ -205,37 +171,18 @@ const Master = () => (
 
       {/* RULES */}
       <Card className="p-6 bg-gradient-card border-border/60 mb-6">
-        <h2 className="text-2xl font-bold mb-4">📜 Rules (AI ke liye — yaad rakhna)</h2>
+        <h2 className="text-2xl font-bold mb-4">📜 Rules (yaad rakhna)</h2>
         <div className="space-y-3">
-          <Rule ok>
-            User ke paas <strong>already working source code</strong> hai —
-            naya backend / login / DB mat banao.
-          </Rule>
-          <Rule ok>
-            Source code mile toh <strong>read-only</strong> mode me padho — sirf samjhne ke liye.
-          </Rule>
-          <Rule ok>
-            APK build <strong>user ki Mac pe</strong> hoti hai (APKForge server). Lovable pe nahi.
-          </Rule>
-          <Rule ok>
-            Live preview = Lovable. Build/RAM/CPU = Mac. Capacitor <code className="bg-secondary px-1.5 py-0.5 rounded text-xs">server.url</code> dono ko link karta hai.
-          </Rule>
-          <Rule bad>
-            <strong>User ki website ka code NEVER edit</strong> — sirf APK wrapper config edit karo.
-          </Rule>
-          <Rule bad>
-            <strong>PWA / React Native rewrite</strong> mat suggest karo. Capacitor + existing website hi chahiye.
-          </Rule>
-          <Rule bad>
-            <strong>Pricing pages, marketing fluff</strong> mat banao jab tak user na bole.
-          </Rule>
-          <Rule bad>
-            <strong>"Lovable backend / Supabase setup"</strong> mat suggest karo —
-            user ke source code me already backend hai.
-          </Rule>
-          <Rule bad>
-            English me lambi explanations mat do — user <strong>Hinglish</strong> me baat karta hai.
-          </Rule>
+          <Rule ok>Native Kotlin + Jetpack Compose only. NO Capacitor, NO WebView.</Rule>
+          <Rule ok>Source code <strong>read-only</strong> — sirf samajhne ke liye.</Rule>
+          <Rule ok>User ka backend untouched — Kotlin app same APIs call kare Retrofit se.</Rule>
+          <Rule ok>Build = Mac. UI/Chat = Lovable.</Rule>
+          <Rule ok>Android only abhi. iOS Swift baad me.</Rule>
+          <Rule bad>NO Cloud / Lovable AI Gateway. Coding main (chat AI) karta hu directly.</Rule>
+          <Rule bad>NO PWA, NO React Native, NO Capacitor suggestions.</Rule>
+          <Rule bad>NO Supabase / backend rebuild — user ke paas already hai.</Rule>
+          <Rule bad>NO marketing/pricing pages.</Rule>
+          <Rule bad>English mat lambe paragraphs likho — Hinglish, short.</Rule>
         </div>
       </Card>
 
@@ -246,13 +193,13 @@ const Master = () => (
         </h2>
         <div className="grid sm:grid-cols-2 gap-3 text-sm">
           <Tech label="APKForge frontend" value="React + Vite + Tailwind" />
-          <Tech label="Mobile wrapper" value="Capacitor 6" />
-          <Tech label="Android build" value="Gradle (assembleDebug/Release)" />
-          <Tech label="iOS build" value="Xcode (xcodebuild)" />
+          <Tech label="App language" value="Kotlin 1.9 + Jetpack Compose" />
+          <Tech label="Min / Target SDK" value="24 / 34" />
+          <Tech label="Build system" value="Gradle 8.5 + AGP 8.2" />
           <Tech label="Local server" value="Express on port 5174" />
-          <Tech label="Project storage" value="~/.apkforge/projects/" />
+          <Tech label="Sources storage" value="~/.apkforge/sources/<id>" />
+          <Tech label="Native projects" value="~/.apkforge/native-projects/" />
           <Tech label="APK output" value="~/.apkforge/outputs/" />
-          <Tech label="Hot reload" value="Capacitor server.url → Lovable preview" />
         </div>
       </Card>
 
@@ -261,14 +208,11 @@ const Master = () => (
         <div className="flex gap-3">
           <Smartphone className="h-6 w-6 text-primary flex-shrink-0 mt-0.5" />
           <div>
-            <h3 className="font-bold text-foreground mb-2">TL;DR — agar bhool jaaye:</h3>
+            <h3 className="font-bold text-foreground mb-2">TL;DR</h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              User ke paas <strong>working website</strong> hai → wo <strong>source code dega</strong> (GitHub/ZIP/Lovable/folder) →
-              main usse <strong>read-only padhunga</strong>, <strong>chedunga nahi</strong> →
-              APKForge me <strong>Capacitor wrapper</strong> banaunga →
-              user Mac pe <strong>"Build APK"</strong> dabayega → real APK ban jayegi.
+              User website ka source de (GitHub/ZIP) → Mac pe import ho → main (chat AI) usse Kotlin Compose code likhu → Mac pe Gradle build → real native APK.
               <br /><br />
-              <strong className="text-red-300">User ki website ka code NEVER edit. Sirf APK wrapper edit.</strong>
+              <strong className="text-yellow-200">Capacitor delete. Pure native. Coding main karta hu, build Mac karta hai.</strong>
             </p>
           </div>
         </div>
@@ -289,9 +233,7 @@ const Role = ({ icon, title, color, does, doesNot }: {
   does: string[]; doesNot: string[];
 }) => (
   <div className="rounded-xl border border-border/60 p-4 bg-background/40">
-    <div className={`flex items-center gap-2 font-semibold mb-3 ${color}`}>
-      {icon} {title}
-    </div>
+    <div className={`flex items-center gap-2 font-semibold mb-3 ${color}`}>{icon} {title}</div>
     <div className="space-y-1.5 text-sm">
       {does.map((d) => (
         <div key={d} className="flex gap-2 text-muted-foreground">
@@ -309,9 +251,7 @@ const Role = ({ icon, title, color, does, doesNot }: {
 
 const Step = ({ n, title, children }: { n: number; title: string; children: React.ReactNode }) => (
   <li className="flex gap-3">
-    <div className="h-7 w-7 rounded-full bg-gradient-primary flex items-center justify-center font-bold text-xs text-primary-foreground flex-shrink-0">
-      {n}
-    </div>
+    <div className="h-7 w-7 rounded-full bg-gradient-primary flex items-center justify-center font-bold text-xs text-primary-foreground flex-shrink-0">{n}</div>
     <div>
       <div className="font-semibold text-foreground">{title}</div>
       <div className="text-sm text-muted-foreground mt-0.5">{children}</div>

@@ -25,49 +25,50 @@ const Server = () => (
         <div className="h-12 w-12 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center">
           <Terminal className="h-6 w-6 text-primary" />
         </div>
-        <h1 className="text-4xl font-bold tracking-tight">Local Build <span className="text-gradient">Server</span></h1>
+        <h1 className="text-4xl font-bold tracking-tight">Native Build <span className="text-gradient">Server</span></h1>
       </div>
       <p className="text-muted-foreground mb-10">
-        Ye website sirf UI hai — actual APK build aapke Mac pe ek small Node server karta hai jo
-        Capacitor + Gradle chalata hai. Ek baar setup karo, baar-baar use karo.
+        Lovable sirf UI hai. Real <strong>Kotlin + Compose Android app</strong> aapke Mac pe Gradle build karta hai.
+        Ek baar setup, baar-baar use.
       </p>
 
       <Card className="p-6 bg-gradient-card border-border/60 space-y-6">
-        <Step n={1} title="Prerequisites install karo (one time)">
-          <p className="text-sm text-muted-foreground mb-3">Mac pe ye 3 cheezein chahiye:</p>
+        <Step n={1} title="Prerequisites (one time)">
           <ul className="text-sm space-y-2 mb-4">
             <li>✅ <span className="font-mono">Node.js 18+</span> — <a className="text-primary hover:underline" href="https://nodejs.org" target="_blank" rel="noreferrer">nodejs.org</a></li>
             <li>✅ <span className="font-mono">JDK 17</span> — <code className="bg-secondary px-2 py-0.5 rounded">brew install openjdk@17</code></li>
-            <li>✅ <span className="font-mono">Android SDK</span> — Android Studio install karke ek baar khol lo, ya <code className="bg-secondary px-2 py-0.5 rounded">brew install --cask android-commandlinetools</code></li>
+            <li>✅ <span className="font-mono">Gradle 8.5+</span> — <code className="bg-secondary px-2 py-0.5 rounded">brew install gradle</code></li>
+            <li>✅ <span className="font-mono">Android SDK</span> — Android Studio install + open once, ya <code className="bg-secondary px-2 py-0.5 rounded">brew install --cask android-commandlinetools</code></li>
+            <li>✅ <span className="font-mono">git</span> — already on Mac</li>
           </ul>
-          <p className="text-xs text-muted-foreground">Ek baar Android Studio open karke "SDK Manager" → Android SDK Platform 34 + Build Tools install kar lo.</p>
+          <p className="text-xs text-muted-foreground">SDK Manager me Android <strong>Platform 34</strong> + <strong>Build Tools 34.x</strong> install karna mat bhulo.</p>
         </Step>
 
-        <Step n={2} title="Environment variables set karo">
-          <p className="text-sm text-muted-foreground mb-3">Apni <code className="bg-secondary px-1.5 py-0.5 rounded text-xs">~/.zshrc</code> me add karo:</p>
+        <Step n={2} title="Env vars in ~/.zshrc">
           <SetupCmd>{`export JAVA_HOME=$(/usr/libexec/java_home -v 17)
 export ANDROID_HOME=$HOME/Library/Android/sdk
 export PATH=$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin`}</SetupCmd>
-          <p className="text-xs text-muted-foreground mt-2">Phir <code className="bg-secondary px-1.5 py-0.5 rounded">source ~/.zshrc</code> chalao.</p>
+          <p className="text-xs text-muted-foreground mt-2">Phir <code className="bg-secondary px-1.5 py-0.5 rounded">source ~/.zshrc</code>.</p>
         </Step>
 
-        <Step n={3} title="APKForge repo clone & install">
-          <SetupCmd>{`# is project ko apne Mac pe clone karke:
+        <Step n={3} title="APKForge install">
+          <SetupCmd>{`git clone <this-repo>
+cd <this-repo>
 npm install
-npm run server:install   # build server ki dependencies`}</SetupCmd>
+cd server && npm install && cd ..`}</SetupCmd>
         </Step>
 
-        <Step n={4} title="Server start karo">
-          <SetupCmd>{`npm run server`}</SetupCmd>
+        <Step n={4} title="Server start">
+          <SetupCmd>{`cd server && npm start`}</SetupCmd>
           <p className="text-xs text-muted-foreground mt-2">
-            Server <code className="bg-secondary px-1.5 py-0.5 rounded">http://localhost:5174</code> pe live ho jaayega.
-            Frontend automatically detect kar lega — Builder page pe green dot dikhega.
+            Server <code className="bg-secondary px-1.5 py-0.5 rounded">http://localhost:5174</code> pe live.
+            Builder me green dot dikhega "Mac server online".
           </p>
         </Step>
 
-        <Step n={5} title="Frontend chalao (alag terminal me)">
+        <Step n={5} title="Frontend (alag terminal)">
           <SetupCmd>{`npm run dev`}</SetupCmd>
-          <p className="text-xs text-muted-foreground mt-2">Phir browser me <code className="bg-secondary px-1.5 py-0.5 rounded">http://localhost:8080/builder</code> kholo aur APK build karo!</p>
+          <p className="text-xs text-muted-foreground mt-2">Browser <code className="bg-secondary px-1.5 py-0.5 rounded">http://localhost:8080/builder</code>.</p>
         </Step>
       </Card>
 
@@ -75,7 +76,7 @@ npm run server:install   # build server ki dependencies`}</SetupCmd>
         <div className="flex gap-3">
           <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
           <div className="text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">Pehli build slow hogi (~5-10 min)</span> — Gradle pehli baar saari Android dependencies download karta hai. Uske baad har build sirf 30-90 seconds me complete hogi.
+            <span className="font-medium text-foreground">Pehli native build slow (~10-15 min)</span> — Gradle Kotlin compiler + Compose dependencies download. Uske baad har build 1-2 min.
           </div>
         </div>
       </Card>
