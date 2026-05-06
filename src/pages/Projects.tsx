@@ -18,9 +18,10 @@ import {
 import { toast } from "sonner";
 import Layout from "@/components/site/Layout";
 import {
-  TrackedProject, TaskStatus, SourceType, loadProjects, saveProjects,
+  TrackedProject, TaskStatus, SourceType, saveProjects,
   createProject, newId,
 } from "@/lib/projectStore";
+import { useProjects, useActiveProjectId, setActiveProjectId } from "@/lib/useProjectStore";
 
 const statusColor: Record<TrackedProject["status"], string> = {
   planning: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
@@ -37,19 +38,15 @@ const taskIcon: Record<TaskStatus, React.ReactNode> = {
 };
 
 const Projects = () => {
-  const [projects, setProjects] = useState<TrackedProject[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const projects = useProjects();
+  const activeId = useActiveProjectId();
 
+  // Auto-select first if none active
   useEffect(() => {
-    const p = loadProjects();
-    setProjects(p);
-    if (p.length && !activeId) setActiveId(p[0].id);
-  }, []);
+    if (!activeId && projects.length > 0) setActiveProjectId(projects[0].id);
+  }, [activeId, projects]);
 
-  const persist = (next: TrackedProject[]) => {
-    setProjects(next);
-    saveProjects(next);
-  };
+  const persist = (next: TrackedProject[]) => saveProjects(next);
 
   const updateProject = (id: string, patch: Partial<TrackedProject>) => {
     persist(projects.map((p) => p.id === id ? { ...p, ...patch, updatedAt: Date.now() } : p));
@@ -59,10 +56,11 @@ const Projects = () => {
     if (!confirm("Ye project delete kar dein?")) return;
     const next = projects.filter((p) => p.id !== id);
     persist(next);
-    if (activeId === id) setActiveId(next[0]?.id ?? null);
+    if (activeId === id) setActiveProjectId(next[0]?.id ?? null);
     toast.success("Project deleted");
   };
 
+  const setActiveId = (id: string | null) => setActiveProjectId(id);
   const active = useMemo(() => projects.find((p) => p.id === activeId) ?? null, [projects, activeId]);
 
   return (

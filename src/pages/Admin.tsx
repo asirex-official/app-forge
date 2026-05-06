@@ -14,7 +14,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import Layout from "@/components/site/Layout";
-import { loadProjects, TrackedProject } from "@/lib/projectStore";
+import { TrackedProject } from "@/lib/projectStore";
+import { useProjects, useActiveProjectId, setActiveProjectId } from "@/lib/useProjectStore";
 
 /**
  * ADMIN PANEL — Single command center
@@ -99,16 +100,17 @@ const CANNOT_DO = [
 ];
 
 const Admin = () => {
-  const [projects, setProjects] = useState<TrackedProject[]>([]);
-  const [activeId, setActiveId] = useState<string>("");
+  const projects = useProjects();
+  const activeIdLive = useActiveProjectId();
+  const activeId = activeIdLive ?? "";
+  const setActiveId = (id: string) => setActiveProjectId(id || null);
   const [presetId, setPresetId] = useState<string>("custom");
   const [prompt, setPrompt] = useState("");
 
+  // Auto-select first project if none active
   useEffect(() => {
-    const p = loadProjects();
-    setProjects(p);
-    if (p.length) setActiveId(p[0].id);
-  }, []);
+    if (!activeIdLive && projects.length > 0) setActiveProjectId(projects[0].id);
+  }, [activeIdLive, projects]);
 
   const active = useMemo(() => projects.find((p) => p.id === activeId), [projects, activeId]);
   const preset = PRESETS.find((p) => p.id === presetId)!;
