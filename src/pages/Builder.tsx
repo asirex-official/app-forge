@@ -14,13 +14,12 @@ import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import Layout from "@/components/site/Layout";
 import { KeysPanel } from "@/components/builder/KeysPanel";
+import { macFetch, macUrl, pingMac } from "@/lib/macConnection";
 import {
   useProjects, useActiveProject, useActiveProjectId,
   setActiveProjectId, patchActiveProject,
 } from "@/lib/useProjectStore";
 import type { TrackedProject } from "@/lib/projectStore";
-
-const SERVER_URL = (import.meta.env.VITE_BUILD_SERVER_URL as string) || "http://localhost:5174";
 
 type BuildState =
   | { status: "idle" }
@@ -53,9 +52,8 @@ const Builder = () => {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`${SERVER_URL}/health`)
-      .then(r => r.json())
-      .then(j => !cancelled && setServerOnline(j?.mode === "native-kotlin"))
+    pingMac()
+      .then(result => !cancelled && setServerOnline(Boolean(result?.ok)))
       .catch(() => !cancelled && setServerOnline(false));
     return () => { cancelled = true; };
   }, []);
@@ -77,7 +75,7 @@ const Builder = () => {
     if (!/^https?:\/\/(github|gitlab)\.com\//i.test(githubUrl)) return toast.error("Valid GitHub URL daalo");
     setImporting(true);
     try {
-      const r = await fetch(`${SERVER_URL}/import/github`, {
+      const r = await macFetch("/import/github", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: githubUrl }),
@@ -102,7 +100,7 @@ const Builder = () => {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const r = await fetch(`${SERVER_URL}/import/zip`, { method: "POST", body: fd });
+      const r = await macFetch("/import/zip", { method: "POST", body: fd });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Upload failed");
       patchActiveProject({
@@ -140,7 +138,7 @@ const Builder = () => {
         files: project.kotlinFiles ?? [],
         gradleDeps: project.kotlinGradleDeps ?? [],
       };
-      const res = await fetch(`${SERVER_URL}/build`, {
+      const res = await macFetch("/build", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -157,13 +155,13 @@ const Builder = () => {
   const pollJob = async (jobId: string) => {
     const tick = async () => {
       try {
-        const r = await fetch(`${SERVER_URL}/build/${jobId}`);
+        const r = await macFetch(`/build/${jobId}`);
         const j = await r.json();
         if (j.status === "running") {
           setBuild({ status: "building", jobId, logs: j.logs ?? [], progress: j.progress ?? 0 });
           setTimeout(tick, 1500);
         } else if (j.status === "done") {
-          setBuild({ status: "done", jobId, apkUrl: `${SERVER_URL}${j.apkUrl}`, logs: j.logs ?? [] });
+          setBuild({ status: "done", jobId, apkUrl: macUrl(j.apkUrl), logs: j.logs ?? [] });
           if (project) patchActiveProject({ status: "ready", lastBuildAt: Date.now() });
           toast.success("Native APK ready! 🎉");
         } else {
