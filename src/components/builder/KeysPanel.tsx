@@ -1,41 +1,29 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { KeyRound, Plus, Trash2, Eye, EyeOff, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { useActiveProject, patchActiveProject } from "@/lib/useProjectStore";
+import { newId, type BackendKey } from "@/lib/projectStore";
 
-export type KeyEntry = { id: string; name: string; value: string };
-
-const STORAGE = "apkforge.keys.v1";
-
-const load = (projectId: string): KeyEntry[] => {
-  try {
-    const raw = localStorage.getItem(`${STORAGE}.${projectId}`);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
-};
-const save = (projectId: string, list: KeyEntry[]) => {
-  localStorage.setItem(`${STORAGE}.${projectId}`, JSON.stringify(list));
-};
-
-export const KeysPanel = ({ projectId }: { projectId: string }) => {
-  const [keys, setKeys] = useState<KeyEntry[]>([]);
+export const KeysPanel = () => {
+  const project = useActiveProject();
+  const keys: BackendKey[] = project?.backendKeys ?? [];
   const [reveal, setReveal] = useState<Set<string>>(new Set());
   const [draftName, setDraftName] = useState("");
   const [draftValue, setDraftValue] = useState("");
 
-  useEffect(() => { setKeys(load(projectId)); }, [projectId]);
-
-  const persist = (list: KeyEntry[]) => { setKeys(list); save(projectId, list); };
+  const persist = (list: BackendKey[]) => patchActiveProject({ backendKeys: list });
 
   const add = () => {
+    if (!project) return toast.error("Pehle koi project select karo");
     const name = draftName.trim().toUpperCase().replace(/\s+/g, "_");
     if (!name) return toast.error("Name zaroori hai");
     if (!draftValue.trim()) return toast.error("Value zaroori hai");
     if (keys.some(k => k.name === name)) return toast.error("Same name pehle se hai");
-    persist([...keys, { id: Math.random().toString(36).slice(2, 9), name, value: draftValue.trim() }]);
+    persist([...keys, { id: newId(), name, value: draftValue.trim() }]);
     setDraftName(""); setDraftValue("");
-    toast.success("Key saved (browser only)");
+    toast.success("Key saved");
   };
 
   const remove = (id: string) => persist(keys.filter(k => k.id !== id));
@@ -46,14 +34,23 @@ export const KeysPanel = ({ projectId }: { projectId: string }) => {
     setReveal(n);
   };
 
+  if (!project) {
+    return (
+      <div className="text-xs text-muted-foreground p-4 border border-dashed border-border rounded-lg text-center">
+        Top right me project select karo — keys per-project save hoti hain.
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <KeyRound className="h-4 w-4 text-primary" />
-        <h3 className="font-semibold text-sm">Backend Keys & Secrets</h3>
+        <h3 className="font-semibold text-sm">Backend Keys</h3>
+        <span className="text-[10px] text-muted-foreground ml-auto truncate">{project.name}</span>
       </div>
       <p className="text-[11px] text-muted-foreground -mt-2">
-        Sirf is browser me saved hote hain (localStorage). Build ke time Mac server ko bhej sakte hain.
+        Project me save hote hain (browser localStorage). Build ke time Mac server ko bhej sakte hain.
       </p>
 
       <div className="space-y-2">
