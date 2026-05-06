@@ -321,6 +321,9 @@ const ProjectDetail = ({
         </div>
       </Card>
 
+      {/* Source Config — full editable */}
+      <SourceConfigCard project={project} onUpdate={onUpdate} />
+
       {/* Tasks */}
       <Card className="p-5 bg-gradient-card border-border/60">
         <h3 className="font-semibold mb-3 flex items-center gap-2">
