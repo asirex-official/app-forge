@@ -246,7 +246,42 @@ app.listen(PORT, () => {
   console.log(`   Sources:  ${SOURCES_DIR}`);
   console.log(`   JAVA_HOME: ${process.env.JAVA_HOME || "(not set!)"}`);
   console.log(`   ANDROID_HOME: ${process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || "(not set!)"}\n`);
+  startCloudflaredTunnel();
 });
+
+// ---------- CLOUDFLARE TUNNEL (free, no signup) ----------
+function startCloudflaredTunnel() {
+  console.log("🌩  Starting Cloudflare Tunnel (free, no account)…");
+  const child = spawn("cloudflared", ["tunnel", "--url", `http://localhost:${PORT}`, "--no-autoupdate"], {
+    env: process.env, shell: false,
+  });
+  const onData = (buf) => {
+    const s = buf.toString();
+    process.stdout.write(s);
+    const m = s.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/i);
+    if (m && !TUNNEL_URL) { TUNNEL_URL = m[0]; printPairingBanner(); }
+  };
+  child.stdout.on("data", onData);
+  child.stderr.on("data", onData);
+  child.on("error", (e) => {
+    console.error("\n❌ cloudflared not found. Install: brew install cloudflared\n", e.message);
+    printPairingBanner();
+  });
+  child.on("close", (code) => console.log(`cloudflared exited (${code}). Restart server to retry.`));
+}
+
+function printPairingBanner() {
+  const url = TUNNEL_URL || `http://localhost:${PORT}`;
+  console.log("\n" + "═".repeat(60));
+  console.log("  🔗  APKForge — Pair your Mac with the Lovable preview");
+  console.log("═".repeat(60));
+  console.log(`  Tunnel URL :  ${url}`);
+  console.log(`  Pair Code  :  ${PAIRING.code}`);
+  console.log("");
+  console.log("  👉  Open the preview, go to /connect, enter the code.");
+  console.log("      You only do this ONCE. Then everything is automatic.");
+  console.log("═".repeat(60) + "\n");
+}
 
 // ---------- NATIVE BUILD PIPELINE ----------
 
