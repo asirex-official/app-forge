@@ -606,13 +606,14 @@ const SourceConfigCard = ({
 };
 
 const Field = ({
-  label, icon, children,
-}: { label: string; icon?: React.ReactNode; children: React.ReactNode }) => (
+  label, icon, hint, children,
+}: { label: string; icon?: React.ReactNode; hint?: string; children: React.ReactNode }) => (
   <div>
     <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 mb-1">
       {icon} {label}
     </label>
     {children}
+    {hint && <p className="text-[10px] text-muted-foreground mt-1">{hint}</p>}
   </div>
 );
 
