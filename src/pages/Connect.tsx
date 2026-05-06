@@ -11,7 +11,20 @@ import {
   clearMacConnection, getMacConnection, pairWithMac, pingMac,
 } from "@/lib/macConnection";
 
-const INSTALL_CMD = `curl -fsSL ${typeof window !== "undefined" ? window.location.origin : ""}/install.sh | bash`;
+// 3 simple commands. No curl-pipe-bash. No mystery.
+const CMD_BREW = `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`;
+const CMD_TOOLS = `brew install openjdk@17 gradle node git cloudflared && brew install --cask android-commandlinetools`;
+const CMD_ENV = `cat >> ~/.zshrc <<'EOF'
+export JAVA_HOME="$(brew --prefix openjdk@17)/libexec/openjdk.jdk/Contents/Home"
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+export ANDROID_SDK_ROOT="$ANDROID_HOME"
+export PATH="$JAVA_HOME/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+EOF
+source ~/.zshrc
+mkdir -p "$ANDROID_HOME/cmdline-tools" && ln -sfn "$(brew --prefix)/share/android-commandlinetools/cmdline-tools/latest" "$ANDROID_HOME/cmdline-tools/latest"
+yes | sdkmanager --licenses >/dev/null && sdkmanager "platform-tools" "build-tools;34.0.0" "platforms;android-34"`;
+const CMD_SERVER = `mkdir -p ~/.apkforge && cd ~/.apkforge && git clone https://github.com/YOUR_GITHUB/apkforge-server.git server || (cd server && git pull)
+cd ~/.apkforge/server && npm install && npm start`;
 
 const Connect = () => {
   const [conn, setConn] = useState(() => getMacConnection());
@@ -117,30 +130,47 @@ const Connect = () => {
           </Card>
         )}
 
-        {/* STEP 1 */}
+        {/* STEP 1 — Manual install, broken into clear copyable commands */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
               <Badge>Step 1</Badge>
-              <CardTitle>Run this on your Mac (one time only)</CardTitle>
+              <CardTitle>Setup karo apne Mac me (ek baar)</CardTitle>
             </div>
             <CardDescription>
-              Installs JDK 17, Gradle, Android SDK, Cloudflare Tunnel + the build server.
-              Takes ~5 min the first time. After that, server starts in seconds.
+              Mac ka Terminal kholo (Cmd+Space → "Terminal"). Niche di gayi 4 commands
+              ek-ek karke paste karo. Pehli baar ~10 min lagenge — sab download hoga.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="rounded-lg border border-border/60 bg-muted/30 p-4 font-mono text-xs flex items-start justify-between gap-3">
-              <div className="flex items-start gap-2 flex-1 min-w-0">
-                <Terminal className="h-4 w-4 mt-0.5 text-primary shrink-0" />
-                <code className="break-all">{INSTALL_CMD}</code>
+          <CardContent className="space-y-4">
+            {[
+              { n: "1", label: "Homebrew install karo (skip if already installed)", cmd: CMD_BREW },
+              { n: "2", label: "Java, Gradle, Android SDK, Cloudflare tunnel install karo", cmd: CMD_TOOLS },
+              { n: "3", label: "Environment variables set karo + Android SDK packages", cmd: CMD_ENV },
+              { n: "4", label: "APKForge server clone karke chalao", cmd: CMD_SERVER },
+            ].map((step) => (
+              <div key={step.n} className="space-y-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">
+                    {step.n}
+                  </span>
+                  <span className="font-medium">{step.label}</span>
+                </div>
+                <div className="rounded-lg border border-border/60 bg-muted/30 p-3 font-mono text-xs flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2 flex-1 min-w-0">
+                    <Terminal className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+                    <pre className="whitespace-pre-wrap break-all">{step.cmd}</pre>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => copy(step.cmd, `Command ${step.n} copied`)}>
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               </div>
-              <Button size="sm" variant="outline" onClick={() => copy(INSTALL_CMD, "Command copied")}>
-                <Copy className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Open Terminal on your Mac → paste → press Enter. Wait until it prints a 6-digit pair code.
+            ))}
+            <p className="text-xs text-muted-foreground pt-2">
+              ⚠️ <b>Step 4 me <code>YOUR_GITHUB</code> replace karna padega</b> — pehle is project ko GitHub se connect karo
+              (top-right me GitHub button), phir us repo ka URL daalo. Last command chalne ke baad terminal me
+              <b> Tunnel URL</b> + <b>6-digit code</b> print hoga.
             </p>
           </CardContent>
         </Card>
