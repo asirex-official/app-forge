@@ -11,7 +11,20 @@ import {
   clearMacConnection, getMacConnection, pairWithMac, pingMac,
 } from "@/lib/macConnection";
 
-const INSTALL_CMD = `curl -fsSL ${typeof window !== "undefined" ? window.location.origin : ""}/install.sh | bash`;
+// 3 simple commands. No curl-pipe-bash. No mystery.
+const CMD_BREW = `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`;
+const CMD_TOOLS = `brew install openjdk@17 gradle node git cloudflared && brew install --cask android-commandlinetools`;
+const CMD_ENV = `cat >> ~/.zshrc <<'EOF'
+export JAVA_HOME="$(brew --prefix openjdk@17)/libexec/openjdk.jdk/Contents/Home"
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+export ANDROID_SDK_ROOT="$ANDROID_HOME"
+export PATH="$JAVA_HOME/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+EOF
+source ~/.zshrc
+mkdir -p "$ANDROID_HOME/cmdline-tools" && ln -sfn "$(brew --prefix)/share/android-commandlinetools/cmdline-tools/latest" "$ANDROID_HOME/cmdline-tools/latest"
+yes | sdkmanager --licenses >/dev/null && sdkmanager "platform-tools" "build-tools;34.0.0" "platforms;android-34"`;
+const CMD_SERVER = `mkdir -p ~/.apkforge && cd ~/.apkforge && git clone https://github.com/YOUR_GITHUB/apkforge-server.git server || (cd server && git pull)
+cd ~/.apkforge/server && npm install && npm start`;
 
 const Connect = () => {
   const [conn, setConn] = useState(() => getMacConnection());
