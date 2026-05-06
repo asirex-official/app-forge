@@ -117,10 +117,10 @@ const Admin = () => {
   useEffect(() => {
     if (!preset) return;
     let t = preset.template;
-    t = t.replaceAll("{NAME}", active?.name || "<app name>");
-    t = t.replaceAll("{PKG}", active?.packageName || "<com.you.app>");
-    t = t.replaceAll("{SRC}", active?.sourceLocation || "<source location>");
-    t = t.replaceAll("{URL}", active?.liveUrl || "<live url>");
+    t = t.split("{NAME}").join(active?.name || "<app name>");
+    t = t.split("{PKG}").join(active?.packageName || "<com.you.app>");
+    t = t.split("{SRC}").join(active?.sourceLocation || "<source location>");
+    t = t.split("{URL}").join(active?.liveUrl || "<live url>");
     setPrompt(t);
   }, [presetId, activeId]);
 
