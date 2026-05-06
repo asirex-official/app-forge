@@ -28,11 +28,26 @@ export type ProjectNote = {
   createdAt: number;
 };
 
+export type SourceType = "github" | "lovable" | "folder" | "zip" | "url";
+
 export type TrackedProject = {
   id: string;
   name: string;            // "Binance Clone", "Zepto Clone" etc.
-  sourceLocation: string;  // GitHub link / folder path / Lovable project name
   packageName: string;     // com.example.binance
+
+  // Source code info
+  sourceType: SourceType;       // kahan se aa raha hai
+  sourceLocation: string;       // link / path / project name
+  githubUrl?: string;           // optional explicit github
+  lovableProject?: string;      // doosre Lovable project ka naam
+  folderPath?: string;          // Mac pe folder path
+  liveUrl?: string;             // running website URL (Capacitor server.url ke liye)
+
+  // Dev server config
+  devPort?: number;             // jaise 5173, 3000, 8080
+  buildCommand?: string;        // "npm run build"
+  outputDir?: string;           // "dist" / "build"
+
   status: "planning" | "building" | "ready" | "shipped";
   tasks: ProjectTask[];
   errors: ProjectError[];
@@ -60,14 +75,15 @@ export const saveProjects = (projects: TrackedProject[]) => {
 export const newId = () => Math.random().toString(36).slice(2, 10);
 
 export const createProject = (
-  partial: Pick<TrackedProject, "name" | "sourceLocation" | "packageName">,
+  partial: Pick<TrackedProject, "name" | "packageName" | "sourceType" | "sourceLocation"> &
+    Partial<Pick<TrackedProject, "githubUrl" | "lovableProject" | "folderPath" | "liveUrl" | "devPort" | "buildCommand" | "outputDir">>,
 ): TrackedProject => ({
   id: newId(),
-  ...partial,
   status: "planning",
   tasks: [],
   errors: [],
   notes: [],
   createdAt: Date.now(),
   updatedAt: Date.now(),
+  ...partial,
 });
