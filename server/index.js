@@ -39,7 +39,55 @@ app.get("/health", (_, res) => {
   });
 });
 
-app.post("/build", (req, res) => {
+// ---------- FILE BROWSER (read-only — for user's source code on Mac) ----------
+// SAFETY: Only allow reading inside an explicit "root" the user provides.
+// We never write to user's source — APKForge only edits its own scaffolded
+// Capacitor project under ~/.apkforge/projects/.
+
+function safeJoin(root, rel) {
+  const abs = path.resolve(root, rel || "");
+  const r = path.resolve(root);
+  if (!abs.startsWith(r)) throw new Error("Path escapes root");
+  return abs;
+}
+
+app.get("/fs/list", async (req, res) => {
+  try {
+    const root = String(req.query.root || "");
+    const rel  = String(req.query.path || "");
+    if (!root) return res.status(400).json({ error: "root required" });
+    const dir = safeJoin(root, rel);
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    const items = entries
+      .filter((e) => !e.name.startsWith(".") && e.name !== "node_modules")
+      .map((e) => ({
+        name: e.name,
+        isDir: e.isDirectory(),
+        path: path.posix.join(rel.replaceAll("\\", "/"), e.name),
+      }))
+      .sort((a, b) => (a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1));
+    res.json({ root, path: rel, items });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.get("/fs/read", async (req, res) => {
+  try {
+    const root = String(req.query.root || "");
+    const rel  = String(req.query.path || "");
+    if (!root || !rel) return res.status(400).json({ error: "root and path required" });
+    const file = safeJoin(root, rel);
+    const stat = await fs.stat(file);
+    if (stat.size > 2 * 1024 * 1024) return res.status(413).json({ error: "File too large (>2MB)" });
+    const content = await fs.readFile(file, "utf8");
+    res.json({ root, path: rel, content, size: stat.size });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+
   const cfg = req.body;
   if (!cfg?.packageName || !cfg?.appName) {
     return res.status(400).json({ error: "appName and packageName are required" });
