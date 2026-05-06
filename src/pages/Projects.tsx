@@ -451,3 +451,168 @@ const ProjectDetail = ({
 };
 
 export default Projects;
+
+/* ─────────────────────────────────────────────────────────────────
+ * Source Config Card — yahan user source code ka link / port /
+ * folder / live URL sab daal sakta hai. Sab fields editable hain.
+ * ───────────────────────────────────────────────────────────────── */
+const SourceConfigCard = ({
+  project, onUpdate,
+}: {
+  project: TrackedProject;
+  onUpdate: (patch: Partial<TrackedProject>) => void;
+}) => {
+  const [draft, setDraft] = useState({
+    sourceType: project.sourceType,
+    sourceLocation: project.sourceLocation || "",
+    githubUrl: project.githubUrl || "",
+    lovableProject: project.lovableProject || "",
+    folderPath: project.folderPath || "",
+    liveUrl: project.liveUrl || "",
+    devPort: project.devPort?.toString() || "",
+    buildCommand: project.buildCommand || "",
+    outputDir: project.outputDir || "",
+  });
+
+  useEffect(() => {
+    setDraft({
+      sourceType: project.sourceType,
+      sourceLocation: project.sourceLocation || "",
+      githubUrl: project.githubUrl || "",
+      lovableProject: project.lovableProject || "",
+      folderPath: project.folderPath || "",
+      liveUrl: project.liveUrl || "",
+      devPort: project.devPort?.toString() || "",
+      buildCommand: project.buildCommand || "",
+      outputDir: project.outputDir || "",
+    });
+  }, [project.id]);
+
+  const set = <K extends keyof typeof draft>(k: K, v: (typeof draft)[K]) =>
+    setDraft((d) => ({ ...d, [k]: v }));
+
+  const save = () => {
+    onUpdate({
+      sourceType: draft.sourceType,
+      sourceLocation: draft.sourceLocation,
+      githubUrl: draft.githubUrl || undefined,
+      lovableProject: draft.lovableProject || undefined,
+      folderPath: draft.folderPath || undefined,
+      liveUrl: draft.liveUrl || undefined,
+      devPort: draft.devPort ? Number(draft.devPort) : undefined,
+      buildCommand: draft.buildCommand || undefined,
+      outputDir: draft.outputDir || undefined,
+    });
+    toast.success("Source config saved");
+  };
+
+  return (
+    <Card className="p-5 bg-gradient-card border-border/60">
+      <h3 className="font-semibold mb-1 flex items-center gap-2">
+        <ServerIcon className="h-4 w-4 text-primary" /> Source Config
+      </h3>
+      <p className="text-xs text-muted-foreground mb-4">
+        Yahan source code ka link, port, folder path, build command — sab daal do.
+        AI yahi se uthayega.
+      </p>
+
+      <div className="grid sm:grid-cols-2 gap-3">
+        <Field label="Source type">
+          <Select value={draft.sourceType} onValueChange={(v) => set("sourceType", v as SourceType)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="github">GitHub link</SelectItem>
+              <SelectItem value="lovable">Doosra Lovable project</SelectItem>
+              <SelectItem value="folder">Mac folder path</SelectItem>
+              <SelectItem value="zip">ZIP upload</SelectItem>
+              <SelectItem value="url">Live URL only</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+
+        <Field label="Primary source location" icon={<ExternalLink className="h-3.5 w-3.5" />}>
+          <Input
+            value={draft.sourceLocation}
+            onChange={(e) => set("sourceLocation", e.target.value)}
+            placeholder="Main link / path / project name"
+          />
+        </Field>
+
+        <Field label="GitHub URL" icon={<Github className="h-3.5 w-3.5" />}>
+          <Input
+            value={draft.githubUrl}
+            onChange={(e) => set("githubUrl", e.target.value)}
+            placeholder="https://github.com/you/repo"
+          />
+        </Field>
+
+        <Field label="Lovable project name" icon={<Sparkles className="h-3.5 w-3.5" />}>
+          <Input
+            value={draft.lovableProject}
+            onChange={(e) => set("lovableProject", e.target.value)}
+            placeholder="my-binance-clone"
+          />
+        </Field>
+
+        <Field label="Mac folder path" icon={<Folder className="h-3.5 w-3.5" />}>
+          <Input
+            value={draft.folderPath}
+            onChange={(e) => set("folderPath", e.target.value)}
+            placeholder="/Users/you/projects/binance"
+          />
+        </Field>
+
+        <Field label="Live URL (Capacitor server.url)" icon={<Globe className="h-3.5 w-3.5" />}>
+          <Input
+            value={draft.liveUrl}
+            onChange={(e) => set("liveUrl", e.target.value)}
+            placeholder="https://your-site.lovable.app"
+          />
+        </Field>
+
+        <Field label="Dev server port" icon={<ServerIcon className="h-3.5 w-3.5" />}>
+          <Input
+            value={draft.devPort}
+            onChange={(e) => set("devPort", e.target.value)}
+            placeholder="5173"
+            inputMode="numeric"
+          />
+        </Field>
+
+        <Field label="Build command">
+          <Input
+            value={draft.buildCommand}
+            onChange={(e) => set("buildCommand", e.target.value)}
+            placeholder="npm run build"
+          />
+        </Field>
+
+        <Field label="Output directory">
+          <Input
+            value={draft.outputDir}
+            onChange={(e) => set("outputDir", e.target.value)}
+            placeholder="dist"
+          />
+        </Field>
+      </div>
+
+      <div className="flex justify-end mt-4">
+        <Button variant="hero" onClick={save}>
+          <Save className="h-4 w-4 mr-1" /> Save Source Config
+        </Button>
+      </div>
+    </Card>
+  );
+};
+
+const Field = ({
+  label, icon, children,
+}: { label: string; icon?: React.ReactNode; children: React.ReactNode }) => (
+  <div>
+    <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 mb-1">
+      {icon} {label}
+    </label>
+    {children}
+  </div>
+);
+
