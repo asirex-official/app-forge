@@ -23,8 +23,8 @@ EOF
 source ~/.zshrc
 mkdir -p "$ANDROID_HOME/cmdline-tools" && ln -sfn "$(brew --prefix)/share/android-commandlinetools/cmdline-tools/latest" "$ANDROID_HOME/cmdline-tools/latest"
 yes | sdkmanager --licenses >/dev/null && sdkmanager "platform-tools" "build-tools;34.0.0" "platforms;android-34"`;
-const CMD_SERVER = `mkdir -p ~/.apkforge && cd ~/.apkforge && git clone https://github.com/YOUR_GITHUB/apkforge-server.git server || (cd server && git pull)
-cd ~/.apkforge/server && npm install && npm start`;
+const CMD_SERVER = `mkdir -p ~/.apkforge && cd ~/.apkforge && (git clone https://github.com/asirex-official/app-forge.git server 2>/dev/null || (cd server && git pull))
+cd ~/.apkforge/server/server && npm install && npm start`;
 
 const Connect = () => {
   const [conn, setConn] = useState(() => getMacConnection());
@@ -168,9 +168,8 @@ const Connect = () => {
               </div>
             ))}
             <p className="text-xs text-muted-foreground pt-2">
-              ⚠️ <b>Step 4 me <code>YOUR_GITHUB</code> replace karna padega</b> — pehle is project ko GitHub se connect karo
-              (top-right me GitHub button), phir us repo ka URL daalo. Last command chalne ke baad terminal me
-              <b> Tunnel URL</b> + <b>6-digit code</b> print hoga.
+              ✅ Step 4 chalne ke baad terminal me <b>Tunnel URL</b> (https://…trycloudflare.com) +
+              <b> 6-digit Pair Code</b> print hoga. Dono niche Step 2 me paste kar de.
             </p>
           </CardContent>
         </Card>
