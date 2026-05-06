@@ -8,8 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import Layout from "@/components/site/Layout";
-
-const SERVER = "http://localhost:5174";
+import { macFetch, pingMac } from "@/lib/macConnection";
 
 type FsItem = { name: string; isDir: boolean; path: string };
 
@@ -25,13 +24,13 @@ const Files = () => {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${SERVER}/health`).then((r) => setServerOk(r.ok)).catch(() => setServerOk(false));
+    pingMac().then((r) => setServerOk(Boolean(r?.ok))).catch(() => setServerOk(false));
   }, []);
 
   const loadDir = async (rel: string) => {
     if (!root) return;
     try {
-      const r = await fetch(`${SERVER}/fs/list?root=${encodeURIComponent(root)}&path=${encodeURIComponent(rel)}`);
+      const r = await macFetch(`/fs/list?root=${encodeURIComponent(root)}&path=${encodeURIComponent(rel)}`);
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Failed");
       setTree((t) => ({ ...t, [rel]: j.items }));
@@ -65,7 +64,7 @@ const Files = () => {
     setLoadingFile(true);
     setFileContent("");
     try {
-      const r = await fetch(`${SERVER}/fs/read?root=${encodeURIComponent(root)}&path=${encodeURIComponent(p)}`);
+      const r = await macFetch(`/fs/read?root=${encodeURIComponent(root)}&path=${encodeURIComponent(p)}`);
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Failed");
       setFileContent(j.content);

@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, Folder, FileCode, Loader2 } from "lucide-react";
-
-const SERVER = "http://localhost:5174";
+import { macFetch } from "@/lib/macConnection";
 
 export type FsItem = { name: string; isDir: boolean; path: string };
 
@@ -23,7 +22,7 @@ export const FileTree = ({
   const loadDir = async (rel: string) => {
     if (!root) return;
     try {
-      const r = await fetch(`${SERVER}/fs/list?root=${encodeURIComponent(root)}&path=${encodeURIComponent(rel)}`);
+      const r = await macFetch(`/fs/list?root=${encodeURIComponent(root)}&path=${encodeURIComponent(rel)}`);
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "Failed");
       setTree((t) => ({ ...t, [rel]: j.items }));
@@ -117,7 +116,7 @@ const Branch = ({
 );
 
 export const fetchFile = async (root: string, path: string): Promise<string> => {
-  const r = await fetch(`${SERVER}/fs/read?root=${encodeURIComponent(root)}&path=${encodeURIComponent(path)}`);
+  const r = await macFetch(`/fs/read?root=${encodeURIComponent(root)}&path=${encodeURIComponent(path)}`);
   const j = await r.json();
   if (!r.ok) throw new Error(j.error || "Failed");
   return j.content as string;

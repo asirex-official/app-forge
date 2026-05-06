@@ -33,6 +33,13 @@ export function clearMacConnection() {
   localStorage.removeItem(LS_KEY);
 }
 
+export function macUrl(path: string): string {
+  const c = getMacConnection();
+  if (!c) throw new Error("Mac not connected. Visit /connect to pair.");
+  const safePath = path.startsWith("/") ? path : `/${path}`;
+  return `${c.tunnelUrl}${safePath}`;
+}
+
 /** Pair with a Mac. `tunnelUrl` is what cloudflared printed; `code` is 6 digits. */
 export async function pairWithMac(tunnelUrl: string, code: string): Promise<MacConnection> {
   const url = tunnelUrl.replace(/\/+$/, "");
@@ -60,12 +67,13 @@ export async function pairWithMac(tunnelUrl: string, code: string): Promise<MacC
 export async function macFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const c = getMacConnection();
   if (!c) throw new Error("Mac not connected. Visit /connect to pair.");
+  const safePath = path.startsWith("/") ? path : `/${path}`;
   const headers = new Headers(init.headers);
   headers.set("X-APKForge-Token", c.token);
   if (init.body && !headers.has("Content-Type") && typeof init.body === "string") {
     headers.set("Content-Type", "application/json");
   }
-  return fetch(`${c.tunnelUrl}${path}`, { ...init, headers });
+  return fetch(`${c.tunnelUrl}${safePath}`, { ...init, headers });
 }
 
 /** Quick health probe — returns null if Mac is offline. */
