@@ -11,6 +11,7 @@ import Studio from "./pages/Studio.tsx";
 import Master from "./pages/Master.tsx";
 import Projects from "./pages/Projects.tsx";
 import Files from "./pages/Files.tsx";
+import Admin from "./pages/Admin.tsx";
 import VisualEditOverlay from "./components/VisualEditOverlay.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -25,6 +26,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/master" element={<Master />} />
+          <Route path="/admin" element={<Admin />} />
           <Route path="/projects" element={<Projects />} />
           <Route path="/files" element={<Files />} />
           <Route path="/studio" element={<Studio />} />
