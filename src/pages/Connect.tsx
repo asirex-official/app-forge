@@ -168,9 +168,8 @@ const Connect = () => {
               </div>
             ))}
             <p className="text-xs text-muted-foreground pt-2">
-              ⚠️ <b>Step 4 me <code>YOUR_GITHUB</code> replace karna padega</b> — pehle is project ko GitHub se connect karo
-              (top-right me GitHub button), phir us repo ka URL daalo. Last command chalne ke baad terminal me
-              <b> Tunnel URL</b> + <b>6-digit code</b> print hoga.
+              ✅ Step 4 chalne ke baad terminal me <b>Tunnel URL</b> (https://…trycloudflare.com) +
+              <b> 6-digit Pair Code</b> print hoga. Dono niche Step 2 me paste kar de.
             </p>
           </CardContent>
         </Card>
