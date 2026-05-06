@@ -87,7 +87,7 @@ app.get("/fs/read", async (req, res) => {
   }
 });
 
-
+app.post("/build", (req, res) => {
   const cfg = req.body;
   if (!cfg?.packageName || !cfg?.appName) {
     return res.status(400).json({ error: "appName and packageName are required" });
