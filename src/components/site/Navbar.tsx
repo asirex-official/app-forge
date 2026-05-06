@@ -5,9 +5,10 @@ import { cn } from "@/lib/utils";
 
 const links = [
   { to: "/", label: "Home" },
+  { to: "/studio", label: "Studio" },
   { to: "/builder", label: "Builder" },
   { to: "/docs", label: "Docs" },
-  { to: "/server", label: "Local Server" },
+  { to: "/server", label: "Server" },
 ];
 
 const Navbar = () => {
