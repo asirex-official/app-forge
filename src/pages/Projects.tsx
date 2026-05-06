@@ -570,7 +570,7 @@ const SourceConfigCard = ({
           />
         </Field>
 
-        <Field label="Dev server port" icon={<ServerIcon className="h-3.5 w-3.5" />}>
+        <Field label="Dev server port" icon={<ServerIcon className="h-3.5 w-3.5" />} hint="Vite=5173, CRA=3000, Lovable=8080. Jo terminal me dikhe wahi.">
           <Input
             value={draft.devPort}
             onChange={(e) => set("devPort", e.target.value)}
