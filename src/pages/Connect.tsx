@@ -23,8 +23,8 @@ EOF
 source ~/.zshrc
 mkdir -p "$ANDROID_HOME/cmdline-tools" && ln -sfn "$(brew --prefix)/share/android-commandlinetools/cmdline-tools/latest" "$ANDROID_HOME/cmdline-tools/latest"
 yes | sdkmanager --licenses >/dev/null && sdkmanager "platform-tools" "build-tools;34.0.0" "platforms;android-34"`;
-const CMD_SERVER = `mkdir -p ~/.apkforge && cd ~/.apkforge && git clone https://github.com/YOUR_GITHUB/apkforge-server.git server || (cd server && git pull)
-cd ~/.apkforge/server && npm install && npm start`;
+const CMD_SERVER = `mkdir -p ~/.apkforge && cd ~/.apkforge && (git clone https://github.com/asirex-official/app-forge.git server 2>/dev/null || (cd server && git pull))
+cd ~/.apkforge/server/server && npm install && npm start`;
 
 const Connect = () => {
   const [conn, setConn] = useState(() => getMacConnection());
