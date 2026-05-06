@@ -1,7 +1,9 @@
-// APKForge — Local Build Server
-// Runs on your Mac. Receives app config from the web UI, scaffolds a Capacitor
-// Android project on disk, runs `./gradlew assembleDebug` (or assembleRelease),
-// and serves the resulting .apk back as a download.
+// APKForge — Local Native Android Build Server
+// Runs on your Mac. Receives a generated Kotlin/Compose project spec from
+// the web UI, scaffolds a REAL NATIVE Android Studio project on disk, runs
+// `./gradlew assembleDebug`, and serves the resulting .apk back as a download.
+//
+// NOT Capacitor. NOT WebView. Real native Kotlin + Jetpack Compose.
 //
 // Usage:  cd server && npm install && node index.js
 // Default port: 5174
@@ -11,39 +13,124 @@ import cors from "cors";
 import fs from "fs-extra";
 import path from "path";
 import os from "os";
-import { spawn } from "child_process";
+import { spawn, execFile } from "child_process";
 import { nanoid } from "nanoid";
-import { fileURLToPath } from "url";
+import multer from "multer";
+import AdmZip from "adm-zip";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 5174;
 const ROOT = path.join(os.homedir(), ".apkforge");
-const PROJECTS_DIR = path.join(ROOT, "projects");
-const OUTPUTS_DIR = path.join(ROOT, "outputs");
+const PROJECTS_DIR = path.join(ROOT, "native-projects"); // generated Android Studio projects
+const SOURCES_DIR  = path.join(ROOT, "sources");         // imported user website source (read-only)
+const OUTPUTS_DIR  = path.join(ROOT, "outputs");         // built APKs
 fs.ensureDirSync(PROJECTS_DIR);
+fs.ensureDirSync(SOURCES_DIR);
 fs.ensureDirSync(OUTPUTS_DIR);
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "20mb" }));
 
+const upload = multer({ dest: path.join(os.tmpdir(), "apkforge-uploads") });
+
 const jobs = new Map(); // jobId -> { status, logs, progress, error?, apkPath? }
 
 app.get("/health", (_, res) => {
   res.json({
     ok: true,
-    version: "0.1.0",
+    version: "0.2.0-native",
+    mode: "native-kotlin",
     javaHome: process.env.JAVA_HOME || null,
     androidHome: process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || null,
     projectsDir: PROJECTS_DIR,
+    sourcesDir: SOURCES_DIR,
   });
 });
 
-// ---------- FILE BROWSER (read-only — for user's source code on Mac) ----------
-// SAFETY: Only allow reading inside an explicit "root" the user provides.
-// We never write to user's source — APKForge only edits its own scaffolded
-// Capacitor project under ~/.apkforge/projects/.
+// ---------- SOURCE IMPORT (GitHub clone or ZIP upload) ----------
+// User's website source code is stored read-only under ~/.apkforge/sources/<id>
+// AI reads it to understand features. We never write to it.
 
+app.post("/import/github", async (req, res) => {
+  const { url } = req.body ?? {};
+  if (!url || !/^https?:\/\/(github|gitlab)\.com\//i.test(url)) {
+    return res.status(400).json({ error: "Valid GitHub/GitLab https URL required" });
+  }
+  const id = nanoid(10);
+  const dir = path.join(SOURCES_DIR, id);
+  try {
+    await new Promise((resolve, reject) => {
+      execFile("git", ["clone", "--depth", "1", url, dir], (err, _stdout, stderr) => {
+        if (err) return reject(new Error(stderr || err.message));
+        resolve();
+      });
+    });
+    const summary = await summarizeSource(dir);
+    res.json({ id, dir, ...summary });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.post("/import/zip", upload.single("file"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "ZIP file required (field name: file)" });
+  const id = nanoid(10);
+  const dir = path.join(SOURCES_DIR, id);
+  try {
+    await fs.ensureDir(dir);
+    const zip = new AdmZip(req.file.path);
+    zip.extractAllTo(dir, true);
+    await fs.unlink(req.file.path).catch(() => {});
+    const summary = await summarizeSource(dir);
+    res.json({ id, dir, ...summary });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.get("/sources", async (_req, res) => {
+  const items = await fs.readdir(SOURCES_DIR).catch(() => []);
+  const out = [];
+  for (const id of items) {
+    const dir = path.join(SOURCES_DIR, id);
+    const stat = await fs.stat(dir).catch(() => null);
+    if (!stat?.isDirectory()) continue;
+    out.push({ id, dir, mtime: stat.mtimeMs, ...(await summarizeSource(dir).catch(() => ({}))) });
+  }
+  res.json(out.sort((a, b) => b.mtime - a.mtime));
+});
+
+async function summarizeSource(dir) {
+  const exists = (p) => fs.pathExists(path.join(dir, p));
+  const pkgPath = path.join(dir, "package.json");
+  let name = path.basename(dir);
+  let deps = [];
+  if (await exists("package.json")) {
+    try {
+      const pkg = await fs.readJson(pkgPath);
+      name = pkg.name || name;
+      deps = Object.keys({ ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) });
+    } catch {}
+  }
+  return {
+    name,
+    framework: detectFramework(deps),
+    deps,
+    hasReact: deps.some((d) => d === "react"),
+    hasNext:  deps.some((d) => d === "next"),
+    hasVite:  deps.some((d) => d === "vite"),
+  };
+}
+
+function detectFramework(deps) {
+  if (deps.includes("next")) return "next";
+  if (deps.includes("vite")) return "vite-react";
+  if (deps.includes("react")) return "react";
+  if (deps.includes("vue")) return "vue";
+  return "unknown";
+}
+
+// ---------- READ-ONLY SOURCE BROWSER ----------
 function safeJoin(root, rel) {
   const abs = path.resolve(root, rel || "");
   const r = path.resolve(root);
@@ -51,51 +138,49 @@ function safeJoin(root, rel) {
   return abs;
 }
 
-app.get("/fs/list", async (req, res) => {
+app.get("/source/:id/list", async (req, res) => {
   try {
-    const root = String(req.query.root || "");
+    const root = path.join(SOURCES_DIR, req.params.id);
     const rel  = String(req.query.path || "");
-    if (!root) return res.status(400).json({ error: "root required" });
     const dir = safeJoin(root, rel);
     const entries = await fs.readdir(dir, { withFileTypes: true });
     const items = entries
       .filter((e) => !e.name.startsWith(".") && e.name !== "node_modules")
-      .map((e) => ({
-        name: e.name,
-        isDir: e.isDirectory(),
-        path: path.posix.join(rel.replaceAll("\\", "/"), e.name),
-      }))
+      .map((e) => ({ name: e.name, isDir: e.isDirectory(), path: path.posix.join(rel.replaceAll("\\", "/"), e.name) }))
       .sort((a, b) => (a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1));
     res.json({ root, path: rel, items });
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
+  } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-app.get("/fs/read", async (req, res) => {
+app.get("/source/:id/read", async (req, res) => {
   try {
-    const root = String(req.query.root || "");
+    const root = path.join(SOURCES_DIR, req.params.id);
     const rel  = String(req.query.path || "");
-    if (!root || !rel) return res.status(400).json({ error: "root and path required" });
     const file = safeJoin(root, rel);
     const stat = await fs.stat(file);
     if (stat.size > 2 * 1024 * 1024) return res.status(413).json({ error: "File too large (>2MB)" });
     const content = await fs.readFile(file, "utf8");
     res.json({ root, path: rel, content, size: stat.size });
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
+  } catch (e) { res.status(400).json({ error: e.message }); }
 });
+
+// ---------- NATIVE KOTLIN BUILD ----------
+// Spec sent by frontend after AI generates Kotlin files.
+// {
+//   appName, packageName, versionName, versionCode, themeColor,
+//   minSdk, targetSdk, permissions: [...],
+//   files: [ { path: "app/src/main/java/com/x/MainActivity.kt", content: "..." }, ... ],
+//   gradleDeps: ["androidx.compose.material3:material3:1.2.1", ...]
+// }
 
 app.post("/build", (req, res) => {
   const cfg = req.body;
   if (!cfg?.packageName || !cfg?.appName) {
-    return res.status(400).json({ error: "appName and packageName are required" });
+    return res.status(400).json({ error: "appName and packageName required" });
   }
   const jobId = nanoid(10);
   jobs.set(jobId, { status: "running", logs: [], progress: 5, startedAt: Date.now() });
-  // run async
-  runBuild(jobId, cfg).catch((err) => {
+  runNativeBuild(jobId, cfg).catch((err) => {
     const job = jobs.get(jobId);
     if (job) {
       job.status = "error";
@@ -109,12 +194,7 @@ app.post("/build", (req, res) => {
 app.get("/build/:id", (req, res) => {
   const job = jobs.get(req.params.id);
   if (!job) return res.status(404).json({ error: "Job not found" });
-  const out = {
-    status: job.status,
-    progress: job.progress,
-    logs: job.logs,
-    error: job.error,
-  };
+  const out = { status: job.status, progress: job.progress, logs: job.logs, error: job.error };
   if (job.status === "done") out.apkUrl = `/apk/${req.params.id}`;
   res.json(out);
 });
@@ -126,193 +206,268 @@ app.get("/apk/:id", (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`\n🔨 APKForge build server: http://localhost:${PORT}`);
+  console.log(`\n🔨 APKForge NATIVE build server: http://localhost:${PORT}`);
+  console.log(`   Mode: Native Kotlin + Jetpack Compose (NO Capacitor)`);
   console.log(`   Projects: ${PROJECTS_DIR}`);
+  console.log(`   Sources:  ${SOURCES_DIR}`);
   console.log(`   JAVA_HOME: ${process.env.JAVA_HOME || "(not set!)"}`);
   console.log(`   ANDROID_HOME: ${process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || "(not set!)"}\n`);
 });
 
-// ---------- BUILD PIPELINE ----------
+// ---------- NATIVE BUILD PIPELINE ----------
 
-async function runBuild(jobId, cfg) {
+async function runNativeBuild(jobId, cfg) {
   const job = jobs.get(jobId);
   const log = (line) => {
     job.logs.push(line);
-    if (job.logs.length > 500) job.logs.splice(0, job.logs.length - 500);
+    if (job.logs.length > 800) job.logs.splice(0, job.logs.length - 800);
   };
   const setProgress = (p) => { job.progress = p; };
 
   const projectDir = path.join(PROJECTS_DIR, sanitizeId(cfg.packageName));
-
-  log(`📁 Project dir: ${projectDir}`);
+  log(`📁 Native project: ${projectDir}`);
   setProgress(10);
 
-  await scaffoldCapacitorProject(projectDir, cfg, log);
+  await scaffoldNativeProject(projectDir, cfg, log);
   setProgress(30);
 
-  await runCmd("npm", ["install", "--no-audit", "--no-fund"], projectDir, log);
+  // Write AI-generated files (they overwrite scaffold defaults where they overlap)
+  if (Array.isArray(cfg.files)) {
+    for (const f of cfg.files) {
+      if (!f?.path || typeof f.content !== "string") continue;
+      const dest = safeJoin(projectDir, f.path);
+      await fs.ensureDir(path.dirname(dest));
+      await fs.writeFile(dest, f.content, "utf8");
+      log(`✏️  wrote ${f.path}`);
+    }
+  }
   setProgress(45);
 
-  log("⚡ Running: npx cap sync android");
-  await runCmd("npx", ["cap", "sync", "android"], projectDir, log);
-  setProgress(60);
-
-  const androidDir = path.join(projectDir, "android");
-  const gradleTask = cfg.buildType === "release" ? "assembleRelease" : "assembleDebug";
-  log(`🏗  Running: ./gradlew ${gradleTask}`);
-  await runCmd("./gradlew", [gradleTask, "--no-daemon"], androidDir, log);
+  log(`🏗  Running: ./gradlew assembleDebug`);
+  await runCmd("./gradlew", ["assembleDebug", "--no-daemon"], projectDir, log);
   setProgress(95);
 
-  // locate APK
-  const apkDir = path.join(androidDir, "app", "build", "outputs", "apk", cfg.buildType);
+  const apkDir = path.join(projectDir, "app", "build", "outputs", "apk", "debug");
   const files = await fs.readdir(apkDir).catch(() => []);
-  const apkFile = files.find(f => f.endsWith(".apk"));
+  const apkFile = files.find((f) => f.endsWith(".apk"));
   if (!apkFile) throw new Error(`APK not found in ${apkDir}`);
 
-  const finalName = `${slug(cfg.appName)}-v${cfg.versionName || "1.0"}-${cfg.buildType}.apk`;
+  const finalName = `${slug(cfg.appName)}-v${cfg.versionName || "1.0"}-debug.apk`;
   const finalPath = path.join(OUTPUTS_DIR, `${jobId}-${finalName}`);
   await fs.copy(path.join(apkDir, apkFile), finalPath);
 
   job.apkPath = finalPath;
   job.status = "done";
   setProgress(100);
-  log(`✅ APK ready: ${finalName}`);
+  log(`✅ Native APK ready: ${finalName}`);
 }
 
 function runCmd(cmd, args, cwd, log) {
   return new Promise((resolve, reject) => {
     log(`$ ${cmd} ${args.join(" ")}`);
     const child = spawn(cmd, args, { cwd, env: process.env, shell: false });
-    child.stdout.on("data", (d) => d.toString().split("\n").filter(Boolean).forEach(l => log(l)));
-    child.stderr.on("data", (d) => d.toString().split("\n").filter(Boolean).forEach(l => log(l)));
+    child.stdout.on("data", (d) => d.toString().split("\n").filter(Boolean).forEach((l) => log(l)));
+    child.stderr.on("data", (d) => d.toString().split("\n").filter(Boolean).forEach((l) => log(l)));
     child.on("error", reject);
-    child.on("close", (code) => code === 0 ? resolve() : reject(new Error(`${cmd} exited with code ${code}`)));
+    child.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`${cmd} exited ${code}`))));
   });
 }
 
-// ---------- CAPACITOR SCAFFOLD ----------
+// ---------- NATIVE ANDROID PROJECT SCAFFOLD ----------
+// Creates a minimal valid Android Studio project (Kotlin DSL + Compose).
+// AI-generated Kotlin files get overlaid on top via cfg.files[].
 
-async function scaffoldCapacitorProject(dir, cfg, log) {
-  const fresh = !fs.existsSync(path.join(dir, "package.json"));
+async function scaffoldNativeProject(dir, cfg, log) {
+  const pkg = cfg.packageName;
+  const pkgPath = pkg.replaceAll(".", "/");
+  const appName = cfg.appName;
+  const versionName = cfg.versionName || "1.0.0";
+  const versionCode = cfg.versionCode || 1;
+  const minSdk = cfg.minSdk || 24;
+  const targetSdk = cfg.targetSdk || 34;
+  const themeColor = (cfg.themeColor || "#22c55e").replace("#", "");
+  const perms = Array.isArray(cfg.permissions) ? cfg.permissions : ["android.permission.INTERNET"];
+  const extraDeps = Array.isArray(cfg.gradleDeps) ? cfg.gradleDeps : [];
+
   await fs.ensureDir(dir);
-  await fs.ensureDir(path.join(dir, "www"));
+  log("🆕 Scaffolding native Android Studio project…");
 
-  // package.json
-  const pkg = {
-    name: slug(cfg.appName),
-    version: cfg.versionName || "1.0.0",
-    private: true,
-    dependencies: {
-      "@capacitor/core": "^6.1.2",
-      "@capacitor/android": "^6.1.2",
-      ...(cfg.permissions?.camera ? { "@capacitor/camera": "^6.0.2" } : {}),
-      ...(cfg.permissions?.location ? { "@capacitor/geolocation": "^6.0.1" } : {}),
-      ...(cfg.permissions?.notifications ? { "@capacitor/push-notifications": "^6.0.2" } : {}),
-    },
-    devDependencies: {
-      "@capacitor/cli": "^6.1.2",
-    },
-  };
-  await fs.writeJson(path.join(dir, "package.json"), pkg, { spaces: 2 });
+  // settings.gradle.kts
+  await fs.writeFile(path.join(dir, "settings.gradle.kts"), `pluginManagement {
+    repositories { google(); mavenCentral(); gradlePluginPortal() }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories { google(); mavenCentral() }
+}
+rootProject.name = "${appName.replace(/"/g, "")}"
+include(":app")
+`, "utf8");
 
-  // capacitor.config.json
-  const capConfig = {
-    appId: cfg.packageName,
-    appName: cfg.appName,
-    webDir: "www",
-    bundledWebRuntime: false,
-    ...(cfg.sourceType === "url" ? { server: { url: cfg.url, cleartext: true } } : {}),
-    android: {
-      backgroundColor: cfg.bgColor || "#0f172a",
-    },
-  };
-  await fs.writeJson(path.join(dir, "capacitor.config.json"), capConfig, { spaces: 2 });
+  // root build.gradle.kts
+  await fs.writeFile(path.join(dir, "build.gradle.kts"), `plugins {
+    id("com.android.application") version "8.2.2" apply false
+    id("org.jetbrains.kotlin.android") version "1.9.22" apply false
+}
+`, "utf8");
 
-  // www/index.html
-  if (cfg.sourceType === "html") {
-    await fs.writeFile(path.join(dir, "www", "index.html"), cfg.html, "utf8");
-  } else {
-    await fs.writeFile(
-      path.join(dir, "www", "index.html"),
-      `<!doctype html><meta charset="utf-8"><title>${escapeHtml(cfg.appName)}</title><body style="font-family:sans-serif;display:grid;place-items:center;height:100vh;margin:0;background:${cfg.bgColor};color:#fff"><p>Loading…</p></body>`,
-      "utf8"
-    );
+  // gradle.properties
+  await fs.writeFile(path.join(dir, "gradle.properties"), `org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+android.useAndroidX=true
+kotlin.code.style=official
+android.nonTransitiveRClass=true
+`, "utf8");
+
+  // gradle wrapper (use system gradle to generate, OR write wrapper jar by hand-shaped script)
+  // Simpler: rely on system gradle once to bootstrap wrapper
+  if (!await fs.pathExists(path.join(dir, "gradlew"))) {
+    try {
+      log("⚙️  Generating gradle wrapper…");
+      await runCmd("gradle", ["wrapper", "--gradle-version", "8.5"], dir, log);
+    } catch {
+      log("⚠️  `gradle` CLI not found — install with `brew install gradle`. Skipping wrapper for now.");
+    }
   }
 
-  if (fresh) {
-    log("🆕 New project — initializing Android platform…");
-    await runCmd("npm", ["install", "--no-audit", "--no-fund"], dir, log);
-    await runCmd("npx", ["cap", "add", "android"], dir, log);
-  }
-
-  // Patch AndroidManifest with permissions
-  await patchManifest(dir, cfg, log);
-
-  // Patch icon if provided
-  if (cfg.iconDataUrl) {
-    await writeIcon(dir, cfg.iconDataUrl, log);
-  }
-
-  // Patch strings.xml with the app name
-  await patchAppName(dir, cfg);
-
-  // Patch versions in build.gradle
-  await patchVersions(dir, cfg);
+  // app/build.gradle.kts
+  await fs.ensureDir(path.join(dir, "app"));
+  await fs.writeFile(path.join(dir, "app/build.gradle.kts"), `plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
 }
 
-async function patchManifest(dir, cfg, log) {
-  const file = path.join(dir, "android", "app", "src", "main", "AndroidManifest.xml");
-  if (!await fs.pathExists(file)) return;
-  let xml = await fs.readFile(file, "utf8");
+android {
+    namespace = "${pkg}"
+    compileSdk = ${targetSdk}
 
-  const perms = [];
-  if (cfg.permissions?.internet) perms.push("android.permission.INTERNET");
-  if (cfg.permissions?.camera) perms.push("android.permission.CAMERA");
-  if (cfg.permissions?.location) perms.push("android.permission.ACCESS_FINE_LOCATION", "android.permission.ACCESS_COARSE_LOCATION");
-  if (cfg.permissions?.notifications) perms.push("android.permission.POST_NOTIFICATIONS");
-  if (cfg.permissions?.storage) perms.push("android.permission.READ_EXTERNAL_STORAGE", "android.permission.WRITE_EXTERNAL_STORAGE");
+    defaultConfig {
+        applicationId = "${pkg}"
+        minSdk = ${minSdk}
+        targetSdk = ${targetSdk}
+        versionCode = ${versionCode}
+        versionName = "${versionName}"
+    }
 
-  // strip existing uses-permission lines we manage
-  xml = xml.replace(/\s*<uses-permission[^/]*\/>/g, "");
-  const block = perms.map(p => `    <uses-permission android:name="${p}" />`).join("\n");
-  xml = xml.replace("<manifest", `<!-- apkforge: permissions -->\n<manifest`)
-           .replace(/(<manifest[^>]*>)/, `$1\n${block}`);
-  await fs.writeFile(file, xml, "utf8");
-  log(`🔐 Manifest updated with ${perms.length} permission(s)`);
+    buildTypes {
+        release { isMinifyEnabled = false }
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = "17" }
+    buildFeatures { compose = true }
+    composeOptions { kotlinCompilerExtensionVersion = "1.5.8" }
 }
 
-async function patchAppName(dir, cfg) {
-  const file = path.join(dir, "android", "app", "src", "main", "res", "values", "strings.xml");
-  if (!await fs.pathExists(file)) return;
-  let xml = await fs.readFile(file, "utf8");
-  xml = xml.replace(/<string name="app_name">[^<]*<\/string>/, `<string name="app_name">${escapeHtml(cfg.appName)}</string>`);
-  xml = xml.replace(/<string name="title_activity_main">[^<]*<\/string>/, `<string name="title_activity_main">${escapeHtml(cfg.appName)}</string>`);
-  await fs.writeFile(file, xml, "utf8");
+dependencies {
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+    implementation("androidx.activity:activity-compose:1.8.2")
+    implementation(platform("androidx.compose:compose-bom:2024.02.00"))
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-graphics")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.navigation:navigation-compose:2.7.6")
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+${extraDeps.map((d) => `    implementation("${d}")`).join("\n")}
 }
+`, "utf8");
 
-async function patchVersions(dir, cfg) {
-  const file = path.join(dir, "android", "app", "build.gradle");
-  if (!await fs.pathExists(file)) return;
-  let g = await fs.readFile(file, "utf8");
-  g = g.replace(/versionCode \d+/, `versionCode ${cfg.versionCode || 1}`);
-  g = g.replace(/versionName "[^"]*"/, `versionName "${cfg.versionName || "1.0.0"}"`);
-  await fs.writeFile(file, g, "utf8");
+  // AndroidManifest.xml
+  const mainDir = path.join(dir, "app/src/main");
+  await fs.ensureDir(mainDir);
+  const permsXml = perms.map((p) => `    <uses-permission android:name="${p}" />`).join("\n");
+  await fs.writeFile(path.join(mainDir, "AndroidManifest.xml"), `<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+${permsXml}
+    <application
+        android:allowBackup="true"
+        android:label="${appName}"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:theme="@style/Theme.App">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.App">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
+`, "utf8");
+
+  // MainActivity.kt (default — AI overrides via cfg.files if it generates one)
+  const javaDir = path.join(mainDir, "java", pkgPath);
+  await fs.ensureDir(javaDir);
+  await fs.writeFile(path.join(javaDir, "MainActivity.kt"), `package ${pkg}
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            MaterialTheme {
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(24.dp),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(text = "${appName}", style = MaterialTheme.typography.headlineMedium)
+                        Spacer(Modifier.height(8.dp))
+                        Text(text = "Native Android app — generated by APKForge")
+                    }
+                }
+            }
+        }
+    }
+}
+`, "utf8");
+
+  // res / values / strings.xml + themes.xml + colors.xml
+  const valuesDir = path.join(mainDir, "res/values");
+  await fs.ensureDir(valuesDir);
+  await fs.writeFile(path.join(valuesDir, "strings.xml"), `<resources>
+    <string name="app_name">${escapeXml(appName)}</string>
+</resources>
+`, "utf8");
+  await fs.writeFile(path.join(valuesDir, "colors.xml"), `<resources>
+    <color name="primary">#${themeColor}</color>
+</resources>
+`, "utf8");
+  await fs.writeFile(path.join(valuesDir, "themes.xml"), `<resources>
+    <style name="Theme.App" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
+`, "utf8");
+
+  // Icon (default — AI can override)
+  if (cfg.iconDataUrl) await writeIcon(dir, cfg.iconDataUrl, log);
 }
 
 async function writeIcon(dir, dataUrl, log) {
   const m = dataUrl.match(/^data:image\/[a-z]+;base64,(.+)$/);
   if (!m) return;
   const buf = Buffer.from(m[1], "base64");
-  // For simplicity write the same icon to all mipmap densities. Production
-  // builders should resize per-density; we keep it simple and rely on Android
-  // to scale.
-  const densities = ["mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"];
-  for (const d of densities) {
-    const p = path.join(dir, "android", "app", "src", "main", "res", `mipmap-${d}`, "ic_launcher.png");
+  for (const d of ["mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"]) {
+    const p = path.join(dir, "app/src/main/res", `mipmap-${d}`, "ic_launcher.png");
     await fs.ensureDir(path.dirname(p));
     await fs.writeFile(p, buf);
-    const round = path.join(dir, "android", "app", "src", "main", "res", `mipmap-${d}`, "ic_launcher_round.png");
-    await fs.writeFile(round, buf);
+    await fs.writeFile(path.join(path.dirname(p), "ic_launcher_round.png"), buf);
   }
   log(`🖼  App icon written to all mipmap densities`);
 }
@@ -320,4 +475,4 @@ async function writeIcon(dir, dataUrl, log) {
 // ---------- helpers ----------
 function sanitizeId(s) { return String(s).replace(/[^a-zA-Z0-9._-]/g, "_"); }
 function slug(s) { return String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "app"; }
-function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function escapeXml(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[c])); }

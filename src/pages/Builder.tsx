@@ -1,28 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Hammer, Smartphone, Globe, Palette, Shield, Loader2, CheckCircle2, XCircle,
-  Download, Image as ImageIcon, FolderOpen, KeyRound, Sparkles, Settings2, FileCode, Copy, Maximize2, Minimize2,
-  AlertCircle,
+  Hammer, Smartphone, Globe, Loader2, CheckCircle2, XCircle,
+  Download, FolderOpen, Github, Upload, Settings2, Sparkles, AlertCircle, FileCode, Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import Layout from "@/components/site/Layout";
-import { FileTree, fetchFile } from "@/components/builder/FileTree";
 import { KeysPanel } from "@/components/builder/KeysPanel";
-import { AICommandPanel } from "@/components/builder/AICommandPanel";
 import {
   useProjects, useActiveProject, useActiveProjectId,
   setActiveProjectId, patchActiveProject,
 } from "@/lib/useProjectStore";
-import type { TrackedProject, AppPermissions } from "@/lib/projectStore";
+import type { TrackedProject } from "@/lib/projectStore";
 
 const SERVER_URL = (import.meta.env.VITE_BUILD_SERVER_URL as string) || "http://localhost:5174";
 
@@ -33,7 +29,13 @@ type BuildState =
   | { status: "done"; jobId: string; apkUrl: string; logs: string[] }
   | { status: "error"; message: string; logs?: string[] };
 
-const DEFAULT_PERMS: AppPermissions = { internet: true, camera: false, location: false, notifications: false, storage: false };
+const ANDROID_PERMS = [
+  { id: "android.permission.INTERNET", label: "Internet", default: true },
+  { id: "android.permission.CAMERA", label: "Camera", default: false },
+  { id: "android.permission.ACCESS_FINE_LOCATION", label: "Location (fine)", default: false },
+  { id: "android.permission.POST_NOTIFICATIONS", label: "Notifications", default: false },
+  { id: "android.permission.READ_EXTERNAL_STORAGE", label: "Storage read", default: false },
+];
 
 const Builder = () => {
   const projects = useProjects();
@@ -42,73 +44,86 @@ const Builder = () => {
 
   const [build, setBuild] = useState<BuildState>({ status: "idle" });
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
-  const [activeFile, setActiveFile] = useState<string | null>(null);
-  const [fileContent, setFileContent] = useState<string>("");
-  const [loadingFile, setLoadingFile] = useState(false);
-  const [previewExpanded, setPreviewExpanded] = useState(false);
-  const [draftRoot, setDraftRoot] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [githubUrl, setGithubUrl] = useState("");
 
-  // Auto-select first project if none active
   useEffect(() => {
     if (!activeId && projects.length > 0) setActiveProjectId(projects[0].id);
   }, [activeId, projects]);
 
-  // Check server health
   useEffect(() => {
     let cancelled = false;
-    fetch(`${SERVER_URL}/health`).then(r => r.ok).then(ok => !cancelled && setServerOnline(!!ok)).catch(() => !cancelled && setServerOnline(false));
+    fetch(`${SERVER_URL}/health`)
+      .then(r => r.json())
+      .then(j => !cancelled && setServerOnline(j?.mode === "native-kotlin"))
+      .catch(() => !cancelled && setServerOnline(false));
     return () => { cancelled = true; };
   }, []);
-
-  // Sync draftRoot with project's folderPath when project changes
-  useEffect(() => {
-    setDraftRoot(project?.folderPath ?? "");
-    setActiveFile(null);
-    setFileContent("");
-  }, [project?.id]);
 
   const set = <K extends keyof TrackedProject>(k: K, v: TrackedProject[K]) => {
     if (!project) return;
     patchActiveProject({ [k]: v } as Partial<TrackedProject>);
   };
 
-  const onIcon = (file: File) => {
-    if (file.size > 2 * 1024 * 1024) return toast.error("Icon under 2MB rakho");
-    const r = new FileReader();
-    r.onload = () => set("iconDataUrl", r.result as string);
-    r.readAsDataURL(file);
+  const togglePerm = (id: string, on: boolean) => {
+    if (!project) return;
+    const cur = new Set(project.androidPermissions ?? ANDROID_PERMS.filter(p => p.default).map(p => p.id));
+    if (on) cur.add(id); else cur.delete(id);
+    set("androidPermissions", Array.from(cur));
   };
 
-  const openFile = async (path: string) => {
-    if (!project?.folderPath) return;
-    setActiveFile(path);
-    setLoadingFile(true);
-    setFileContent("");
+  const importGithub = async () => {
+    if (!serverOnline) return toast.error("Mac server offline. /server check karo.");
+    if (!/^https?:\/\/(github|gitlab)\.com\//i.test(githubUrl)) return toast.error("Valid GitHub URL daalo");
+    setImporting(true);
     try {
-      const c = await fetchFile(project.folderPath, path);
-      setFileContent(c);
-    } catch (e: any) {
-      setFileContent(`// Error: ${e.message}`);
-    } finally {
-      setLoadingFile(false);
-    }
+      const r = await fetch(`${SERVER_URL}/import/github`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: githubUrl }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "Import failed");
+      patchActiveProject({
+        sourceImportId: j.id,
+        sourceImportPath: j.dir,
+        sourceFramework: j.framework,
+        liveUrl: githubUrl,
+      });
+      toast.success(`Imported! Framework: ${j.framework}`);
+    } catch (e: any) { toast.error(e.message); }
+    finally { setImporting(false); }
   };
 
-  const validate = (): string | null => {
-    if (!project) return "Pehle project select / create karo";
-    if (!/^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$/.test(project.packageName))
-      return "Package name format galat (e.g. com.example.app)";
-    if (!project.name.trim()) return "App name zaroori hai";
-    const srcType = project.sourceWebsiteType ?? "url";
-    if (srcType === "url" && !/^https?:\/\//.test(project.liveUrl ?? "")) return "Live URL http(s):// se shuru hona chahiye";
-    return null;
+  const importZip = async (file: File) => {
+    if (!serverOnline) return toast.error("Mac server offline");
+    if (file.size > 100 * 1024 * 1024) return toast.error("ZIP under 100MB rakho");
+    setImporting(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const r = await fetch(`${SERVER_URL}/import/zip`, { method: "POST", body: fd });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "Upload failed");
+      patchActiveProject({
+        sourceImportId: j.id,
+        sourceImportPath: j.dir,
+        sourceFramework: j.framework,
+      });
+      toast.success(`Uploaded! Framework: ${j.framework}`);
+    } catch (e: any) { toast.error(e.message); }
+    finally { setImporting(false); }
   };
 
   const startBuild = async () => {
-    const err = validate();
-    if (err) return toast.error(err);
-    if (!serverOnline) return toast.error("Mac build server offline. /server check karo.");
-    if (!project) return;
+    if (!project) return toast.error("Project select karo");
+    if (!project.name?.trim()) return toast.error("App name daalo");
+    if (!/^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$/.test(project.packageName)) return toast.error("Package name galat (e.g. com.you.app)");
+    if (!serverOnline) return toast.error("Mac server offline");
+    if (!project.kotlinFiles?.length) {
+      const ok = confirm("Abhi tak Kotlin code generate nahi hua. Default 'Hello World' Compose app build karein?");
+      if (!ok) return;
+    }
 
     setBuild({ status: "submitting" });
     try {
@@ -117,14 +132,13 @@ const Builder = () => {
         packageName: project.packageName,
         versionName: project.versionName ?? "1.0.0",
         versionCode: project.versionCode ?? 1,
-        sourceType: project.sourceWebsiteType ?? "url",
-        url: project.liveUrl ?? "",
-        html: project.htmlContent ?? "",
         themeColor: project.themeColor ?? "#22c55e",
-        bgColor: project.bgColor ?? "#0f172a",
+        minSdk: 24,
+        targetSdk: 34,
+        permissions: project.androidPermissions ?? ANDROID_PERMS.filter(p => p.default).map(p => p.id),
         iconDataUrl: project.iconDataUrl ?? null,
-        permissions: project.permissions ?? DEFAULT_PERMS,
-        buildType: project.buildType ?? "debug",
+        files: project.kotlinFiles ?? [],
+        gradleDeps: project.kotlinGradleDeps ?? [],
       };
       const res = await fetch(`${SERVER_URL}/build`, {
         method: "POST",
@@ -151,7 +165,7 @@ const Builder = () => {
         } else if (j.status === "done") {
           setBuild({ status: "done", jobId, apkUrl: `${SERVER_URL}${j.apkUrl}`, logs: j.logs ?? [] });
           if (project) patchActiveProject({ status: "ready", lastBuildAt: Date.now() });
-          toast.success("APK build ho gayi! 🎉");
+          toast.success("Native APK ready! 🎉");
         } else {
           setBuild({ status: "error", message: j.error ?? "Build fail", logs: j.logs });
         }
@@ -163,17 +177,14 @@ const Builder = () => {
   };
 
   const isBuilding = build.status === "submitting" || build.status === "building";
-
-  const previewSrc = useMemo(() => {
-    if (!project) return "about:blank";
-    const t = project.sourceWebsiteType ?? "url";
-    if (t === "url") return project.liveUrl || "about:blank";
-    return `data:text/html;charset=utf-8,${encodeURIComponent(project.htmlContent ?? "")}`;
-  }, [project?.sourceWebsiteType, project?.liveUrl, project?.htmlContent]);
+  const enabledPerms = useMemo(
+    () => new Set(project?.androidPermissions ?? ANDROID_PERMS.filter(p => p.default).map(p => p.id)),
+    [project?.androidPermissions]
+  );
 
   return (
     <Layout>
-      <div className="container max-w-[1600px] py-6">
+      <div className="container max-w-[1400px] py-6">
         {/* HEADER */}
         <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
           <div className="flex items-center gap-3">
@@ -181,8 +192,8 @@ const Builder = () => {
               <Hammer className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">App <span className="text-gradient">Builder</span></h1>
-              <p className="text-xs text-muted-foreground">Sab pages ek shared state pe — Builder, Projects, Admin sync rehte hain.</p>
+              <h1 className="text-2xl font-bold tracking-tight">Native <span className="text-gradient">Builder</span></h1>
+              <p className="text-xs text-muted-foreground">Real Kotlin + Jetpack Compose. No WebView. No Capacitor.</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -198,174 +209,184 @@ const Builder = () => {
           </div>
         </div>
 
-        {/* No project selected */}
         {!project && (
           <Card className="p-12 text-center bg-gradient-card border-border/60">
             <AlertCircle className="h-10 w-10 text-muted-foreground mx-auto mb-3 opacity-50" />
             <h3 className="font-semibold mb-1">Koi project select nahi</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Pehle <Link to="/projects" className="text-primary underline">/projects</Link> par jaake ek project banao — fir yahan sab settings ek shared state me dikhengi.
+              Pehle <Link to="/projects" className="text-primary underline">/projects</Link> par jaake ek project banao.
             </p>
             <Button asChild variant="hero"><Link to="/projects">Go to Projects</Link></Button>
           </Card>
         )}
 
-        {/* 3-PANEL IDE */}
         {project && (
-          <div className="grid grid-cols-12 gap-3 h-[calc(100vh-180px)] min-h-[640px]">
-            {/* LEFT: file tree + code viewer */}
-            <Card className="col-span-3 bg-gradient-card border-border/60 flex flex-col overflow-hidden">
-              <div className="px-3 py-2 border-b border-border/60 flex items-center gap-2 bg-background/40">
+          <div className="grid grid-cols-12 gap-4">
+            {/* LEFT: source import */}
+            <Card className="col-span-12 lg:col-span-4 bg-gradient-card border-border/60 p-4 space-y-4">
+              <div className="flex items-center gap-2">
                 <FolderOpen className="h-4 w-4 text-primary" />
-                <span className="text-xs font-semibold">Source Files</span>
-                <span className="text-[10px] text-muted-foreground ml-auto">read-only</span>
+                <h3 className="font-semibold text-sm">1. Website Source Import</h3>
               </div>
 
-              {!project.folderPath ? (
-                <div className="p-3 space-y-2">
-                  <p className="text-[11px] text-muted-foreground">Mac pe source folder ka full path:</p>
-                  <Input
-                    value={draftRoot}
-                    onChange={(e) => setDraftRoot(e.target.value)}
-                    placeholder="/Users/you/projects/my-app"
-                    className="font-mono text-xs h-8"
-                  />
-                  <Button
-                    size="sm"
-                    variant="hero"
-                    className="w-full"
-                    disabled={!draftRoot}
-                    onClick={() => { set("folderPath", draftRoot); toast.success("Root saved in project"); }}
-                  >
-                    Load folder
-                  </Button>
+              {project.sourceImportId ? (
+                <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-3 text-xs space-y-1">
+                  <div className="flex items-center gap-2 text-green-400 font-semibold">
+                    <CheckCircle2 className="h-4 w-4" /> Imported
+                  </div>
+                  <div className="font-mono text-muted-foreground truncate">{project.sourceImportPath}</div>
+                  {project.sourceFramework && <Badge variant="secondary" className="text-[10px]">framework: {project.sourceFramework}</Badge>}
+                  <button
+                    onClick={() => patchActiveProject({ sourceImportId: undefined, sourceImportPath: undefined, sourceFramework: undefined })}
+                    className="text-destructive hover:underline text-[11px] mt-1"
+                  >clear & re-import</button>
                 </div>
               ) : (
-                <>
-                  <div className="px-3 py-1.5 text-[10px] text-muted-foreground font-mono border-b border-border/60 truncate flex items-center justify-between gap-2">
-                    <span className="truncate">{project.folderPath}</span>
-                    <button
-                      onClick={() => { set("folderPath", undefined); setDraftRoot(""); setActiveFile(null); setFileContent(""); }}
-                      className="text-destructive hover:underline flex-shrink-0"
-                    >clear</button>
-                  </div>
-                  <div className="flex-1 overflow-auto p-2">
-                    <FileTree
-                      root={project.folderPath}
-                      serverOk={serverOnline}
-                      activeFile={activeFile}
-                      onOpenFile={openFile}
-                    />
-                  </div>
-                  {activeFile && (
-                    <div className="border-t border-border/60 max-h-[40%] flex flex-col">
-                      <div className="px-3 py-1.5 flex items-center justify-between bg-background/40 border-b border-border/60">
-                        <div className="flex items-center gap-1.5 text-[11px] font-mono truncate">
-                          <FileCode className="h-3 w-3 text-primary" />
-                          <span className="truncate">{activeFile}</span>
-                        </div>
-                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => { navigator.clipboard.writeText(fileContent); toast.success("Copied"); }}>
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                      </div>
-                      {loadingFile ? (
-                        <div className="p-4 text-center"><Loader2 className="h-4 w-4 animate-spin inline" /></div>
-                      ) : (
-                        <pre className="flex-1 overflow-auto p-2 text-[10px] font-mono leading-snug">
-                          {fileContent.split("\n").map((line, i) => (
-                            <div key={i} className="flex">
-                              <span className="text-muted-foreground/40 select-none w-7 flex-shrink-0 text-right pr-2">{i + 1}</span>
-                              <span className="whitespace-pre">{line}</span>
-                            </div>
-                          ))}
-                        </pre>
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
-            </Card>
-
-            {/* CENTER: live preview */}
-            <Card className={`${previewExpanded ? "col-span-9" : "col-span-5"} bg-gradient-card border-border/60 flex flex-col overflow-hidden transition-all`}>
-              <div className="px-3 py-2 border-b border-border/60 flex items-center justify-between bg-background/40">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Globe className="h-4 w-4 text-primary flex-shrink-0" />
-                  <span className="text-xs font-semibold">Live Preview</span>
-                  <span className="text-[10px] text-muted-foreground font-mono truncate">
-                    {(project.sourceWebsiteType ?? "url") === "url" ? (project.liveUrl || "no url") : "custom HTML"}
-                  </span>
-                </div>
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setPreviewExpanded(v => !v)}>
-                  {previewExpanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-                </Button>
-              </div>
-
-              <div className="flex-1 flex items-center justify-center bg-background/20 p-4 overflow-auto">
-                <div
-                  className="rounded-[2rem] border-4 border-secondary shadow-card overflow-hidden flex flex-col"
-                  style={{ background: project.bgColor ?? "#0f172a", width: 320, height: 620, maxHeight: "100%" }}
-                >
-                  <div className="h-6 flex items-center justify-center flex-shrink-0">
-                    <div className="h-1 w-16 rounded-full bg-foreground/20" />
-                  </div>
-                  <div className="h-9 px-3 flex items-center gap-2 text-xs text-white flex-shrink-0" style={{ background: project.themeColor ?? "#22c55e" }}>
-                    {project.iconDataUrl && <img src={project.iconDataUrl} className="h-5 w-5 rounded" alt="" />}
-                    <span className="truncate font-semibold">{project.name}</span>
-                  </div>
-                  <iframe
-                    src={previewSrc}
-                    title="preview"
-                    className="flex-1 w-full bg-background"
-                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                  />
-                </div>
-              </div>
-
-              {/* Build bar at bottom */}
-              <div className="border-t border-border/60 p-3 bg-background/40 space-y-2">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-[10px] text-muted-foreground font-mono truncate">
-                    📦 {project.packageName} · v{project.versionName ?? "1.0.0"} · {project.buildType ?? "debug"}
-                  </div>
-                  <Button onClick={startBuild} variant="hero" size="sm" disabled={isBuilding || serverOnline === false}>
-                    {isBuilding ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Building…</> : <><Hammer className="h-3.5 w-3.5" /> Build APK</>}
-                  </Button>
-                </div>
-                <BuildPanel build={build} />
-              </div>
-            </Card>
-
-            {/* RIGHT: tabs (Config / Keys / AI) */}
-            {!previewExpanded && (
-              <Card className="col-span-4 bg-gradient-card border-border/60 flex flex-col overflow-hidden">
-                <Tabs defaultValue="config" className="flex-1 flex flex-col overflow-hidden">
-                  <TabsList className="grid grid-cols-3 m-2 mb-0">
-                    <TabsTrigger value="config" className="text-xs"><Settings2 className="h-3.5 w-3.5 mr-1" />Config</TabsTrigger>
-                    <TabsTrigger value="keys" className="text-xs"><KeyRound className="h-3.5 w-3.5 mr-1" />Keys</TabsTrigger>
-                    <TabsTrigger value="ai" className="text-xs"><Sparkles className="h-3.5 w-3.5 mr-1" />AI</TabsTrigger>
+                <Tabs defaultValue="github">
+                  <TabsList className="grid grid-cols-2 w-full">
+                    <TabsTrigger value="github" className="text-xs"><Github className="h-3 w-3 mr-1" />GitHub</TabsTrigger>
+                    <TabsTrigger value="zip" className="text-xs"><Upload className="h-3 w-3 mr-1" />ZIP</TabsTrigger>
                   </TabsList>
-
-                  <TabsContent value="config" className="flex-1 overflow-auto p-3 mt-0 space-y-4">
-                    <ConfigForm project={project} set={set} onIcon={onIcon} />
-                  </TabsContent>
-
-                  <TabsContent value="keys" className="flex-1 overflow-auto p-3 mt-0">
-                    <KeysPanel />
-                  </TabsContent>
-
-                  <TabsContent value="ai" className="flex-1 overflow-auto p-3 mt-0">
-                    <AICommandPanel
-                      projectName={project.name}
-                      packageName={project.packageName}
-                      sourceLocation={project.folderPath || project.sourceLocation}
-                      liveUrl={project.liveUrl}
-                      selectedFile={activeFile}
+                  <TabsContent value="github" className="space-y-2 pt-3">
+                    <Input
+                      placeholder="https://github.com/you/your-website"
+                      value={githubUrl}
+                      onChange={e => setGithubUrl(e.target.value)}
+                      className="text-xs h-9 font-mono"
                     />
+                    <Button onClick={importGithub} disabled={importing || !serverOnline} variant="hero" className="w-full" size="sm">
+                      {importing ? <><Loader2 className="h-3 w-3 animate-spin" /> Cloning…</> : "Clone repo"}
+                    </Button>
+                  </TabsContent>
+                  <TabsContent value="zip" className="space-y-2 pt-3">
+                    <label className="block">
+                      <input
+                        type="file"
+                        accept=".zip"
+                        className="hidden"
+                        disabled={importing || !serverOnline}
+                        onChange={e => e.target.files?.[0] && importZip(e.target.files[0])}
+                      />
+                      <div className="rounded-lg border-2 border-dashed border-border/60 p-6 text-center cursor-pointer hover:bg-secondary/40 transition-smooth">
+                        <Upload className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
+                        <div className="text-xs">Click to upload ZIP</div>
+                        <div className="text-[10px] text-muted-foreground mt-1">Max 100MB</div>
+                      </div>
+                    </label>
+                    {importing && <div className="text-center text-xs"><Loader2 className="h-3 w-3 animate-spin inline" /> Uploading…</div>}
                   </TabsContent>
                 </Tabs>
-              </Card>
-            )}
+              )}
+
+              <div className="border-t border-border/60 pt-3 text-[11px] text-muted-foreground space-y-1.5">
+                <div className="flex items-center gap-1.5"><Sparkles className="h-3 w-3 text-primary" /> Source imported = AI iska code padh sakta hai</div>
+                <div>Mujhe chat me bolo: <em className="text-foreground">"Iss source ko padho aur Kotlin Compose me convert karo"</em></div>
+              </div>
+            </Card>
+
+            {/* MIDDLE: app config */}
+            <Card className="col-span-12 lg:col-span-4 bg-gradient-card border-border/60 p-4 space-y-4">
+              <div className="flex items-center gap-2">
+                <Settings2 className="h-4 w-4 text-primary" />
+                <h3 className="font-semibold text-sm">2. App Config</h3>
+              </div>
+              <div className="space-y-3">
+                <Field label="App name">
+                  <Input value={project.name} onChange={e => set("name", e.target.value)} className="h-8 text-xs" />
+                </Field>
+                <Field label="Package name">
+                  <Input value={project.packageName} onChange={e => set("packageName", e.target.value)} placeholder="com.you.app" className="h-8 text-xs font-mono" />
+                </Field>
+                <div className="grid grid-cols-2 gap-2">
+                  <Field label="Version">
+                    <Input value={project.versionName ?? "1.0.0"} onChange={e => set("versionName", e.target.value)} className="h-8 text-xs font-mono" />
+                  </Field>
+                  <Field label="Version code">
+                    <Input type="number" value={project.versionCode ?? 1} onChange={e => set("versionCode", parseInt(e.target.value) || 1)} className="h-8 text-xs font-mono" />
+                  </Field>
+                </div>
+                <Field label="Theme color">
+                  <div className="flex gap-2">
+                    <input type="color" value={project.themeColor ?? "#22c55e"} onChange={e => set("themeColor", e.target.value)} className="h-8 w-12 rounded border border-border bg-transparent" />
+                    <Input value={project.themeColor ?? "#22c55e"} onChange={e => set("themeColor", e.target.value)} className="h-8 text-xs font-mono" />
+                  </div>
+                </Field>
+                <Field label="App icon (PNG)">
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg"
+                    onChange={e => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      if (f.size > 2 * 1024 * 1024) return toast.error("Icon under 2MB");
+                      const r = new FileReader();
+                      r.onload = () => set("iconDataUrl", r.result as string);
+                      r.readAsDataURL(f);
+                    }}
+                    className="text-xs"
+                  />
+                  {project.iconDataUrl && <img src={project.iconDataUrl} alt="icon" className="h-12 w-12 rounded-lg mt-2 border border-border" />}
+                </Field>
+
+                <div>
+                  <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Android permissions</Label>
+                  <div className="space-y-1.5 mt-2">
+                    {ANDROID_PERMS.map(p => (
+                      <div key={p.id} className="flex items-center justify-between text-xs">
+                        <span className="font-mono text-[11px] truncate">{p.label}</span>
+                        <Switch checked={enabledPerms.has(p.id)} onCheckedChange={(v) => togglePerm(p.id, v)} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            {/* RIGHT: kotlin code + build */}
+            <Card className="col-span-12 lg:col-span-4 bg-gradient-card border-border/60 p-4 space-y-4">
+              <div className="flex items-center gap-2">
+                <FileCode className="h-4 w-4 text-primary" />
+                <h3 className="font-semibold text-sm">3. Generated Kotlin</h3>
+              </div>
+
+              <div className="rounded-lg border border-border/60 bg-background/40 p-3 text-xs">
+                {project.kotlinFiles?.length ? (
+                  <div className="space-y-1 max-h-48 overflow-auto">
+                    {project.kotlinFiles.map(f => (
+                      <div key={f.path} className="flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
+                        <FileCode className="h-3 w-3 text-primary flex-shrink-0" />
+                        <span className="truncate">{f.path}</span>
+                        <span className="ml-auto">{f.content.length}b</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-3 text-muted-foreground">
+                    <Sparkles className="h-5 w-5 mx-auto mb-1 opacity-50" />
+                    Abhi tak Kotlin generate nahi hua
+                  </div>
+                )}
+              </div>
+
+              <div className="text-[11px] text-muted-foreground p-3 rounded-lg bg-primary/5 border border-primary/20">
+                💡 Mujhe (chat me) bolo: <em className="text-foreground">"Imported source ke saare screens dekho aur Kotlin Compose Activities banao"</em> — main yahan files daal dunga.
+              </div>
+
+              <Button onClick={startBuild} variant="hero" className="w-full" disabled={isBuilding || serverOnline === false}>
+                {isBuilding ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Building native APK…</>
+                ) : (
+                  <><Hammer className="h-4 w-4" /> Build Native APK</>
+                )}
+              </Button>
+
+              <BuildPanel build={build} />
+            </Card>
+
+            {/* FULL WIDTH: keys */}
+            <Card className="col-span-12 bg-gradient-card border-border/60 p-4">
+              <KeysPanel />
+            </Card>
           </div>
         )}
       </div>
@@ -373,148 +394,52 @@ const Builder = () => {
   );
 };
 
-const ConfigForm = ({
-  project, set, onIcon,
-}: {
-  project: TrackedProject;
-  set: <K extends keyof TrackedProject>(k: K, v: TrackedProject[K]) => void;
-  onIcon: (f: File) => void;
-}) => {
-  const perms = project.permissions ?? DEFAULT_PERMS;
-  const sourceType = project.sourceWebsiteType ?? "url";
-  return (
-    <Tabs defaultValue="general">
-      <TabsList className="grid grid-cols-4 mb-3">
-        <TabsTrigger value="general" className="text-[10px] px-1"><Smartphone className="h-3 w-3" /></TabsTrigger>
-        <TabsTrigger value="content" className="text-[10px] px-1"><Globe className="h-3 w-3" /></TabsTrigger>
-        <TabsTrigger value="design" className="text-[10px] px-1"><Palette className="h-3 w-3" /></TabsTrigger>
-        <TabsTrigger value="perms" className="text-[10px] px-1"><Shield className="h-3 w-3" /></TabsTrigger>
-      </TabsList>
-
-      <TabsContent value="general" className="space-y-3">
-        <Field label="App Name"><Input value={project.name} onChange={e => set("name", e.target.value)} className="h-8 text-xs" /></Field>
-        <Field label="Package Name"><Input className="font-mono h-8 text-xs" value={project.packageName} onChange={e => set("packageName", e.target.value.toLowerCase())} /></Field>
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="Version"><Input value={project.versionName ?? "1.0.0"} onChange={e => set("versionName", e.target.value)} className="h-8 text-xs" /></Field>
-          <Field label="Code"><Input type="number" min={1} value={project.versionCode ?? 1} onChange={e => set("versionCode", parseInt(e.target.value) || 1)} className="h-8 text-xs" /></Field>
-        </div>
-        <Field label="Build Type">
-          <div className="flex gap-2">
-            {(["debug", "release"] as const).map(t => (
-              <button key={t} onClick={() => set("buildType", t)}
-                className={`flex-1 px-2 py-1.5 rounded-md border text-[11px] font-medium transition-smooth ${(project.buildType ?? "debug") === t ? "border-primary bg-primary/10 text-primary" : "border-border bg-secondary/50 text-muted-foreground"}`}>
-                {t}
-              </button>
-            ))}
-          </div>
-        </Field>
-      </TabsContent>
-
-      <TabsContent value="content" className="space-y-3">
-        <Field label="Source Type">
-          <div className="flex gap-2">
-            {(["url", "html"] as const).map(t => (
-              <button key={t} onClick={() => set("sourceWebsiteType", t)}
-                className={`flex-1 px-2 py-1.5 rounded-md border text-[11px] font-medium transition-smooth ${sourceType === t ? "border-primary bg-primary/10 text-primary" : "border-border bg-secondary/50 text-muted-foreground"}`}>
-                {t === "url" ? "Website URL" : "Custom HTML"}
-              </button>
-            ))}
-          </div>
-        </Field>
-        {sourceType === "url" ? (
-          <Field label="Live URL"><Input type="url" value={project.liveUrl ?? ""} onChange={e => set("liveUrl", e.target.value)} className="h-8 text-xs" placeholder="https://..." /></Field>
-        ) : (
-          <Field label="HTML"><Textarea rows={8} className="font-mono text-[10px]" value={project.htmlContent ?? ""} onChange={e => set("htmlContent", e.target.value)} /></Field>
-        )}
-      </TabsContent>
-
-      <TabsContent value="design" className="space-y-3">
-        <Field label="App Icon">
-          <div className="flex items-center gap-2">
-            <div className="h-12 w-12 rounded-xl border-2 border-dashed border-border bg-secondary/50 flex items-center justify-center overflow-hidden flex-shrink-0">
-              {project.iconDataUrl
-                ? <img src={project.iconDataUrl} alt="icon" className="h-full w-full object-cover" />
-                : <ImageIcon className="h-5 w-5 text-muted-foreground" />}
-            </div>
-            <Input type="file" accept="image/*" onChange={e => e.target.files?.[0] && onIcon(e.target.files[0])} className="h-8 text-xs" />
-          </div>
-        </Field>
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="Theme">
-            <div className="flex items-center gap-1">
-              <input type="color" value={project.themeColor ?? "#22c55e"} onChange={e => set("themeColor", e.target.value)} className="h-8 w-8 rounded bg-transparent border border-border cursor-pointer" />
-              <Input className="font-mono h-8 text-[10px]" value={project.themeColor ?? "#22c55e"} onChange={e => set("themeColor", e.target.value)} />
-            </div>
-          </Field>
-          <Field label="Splash">
-            <div className="flex items-center gap-1">
-              <input type="color" value={project.bgColor ?? "#0f172a"} onChange={e => set("bgColor", e.target.value)} className="h-8 w-8 rounded bg-transparent border border-border cursor-pointer" />
-              <Input className="font-mono h-8 text-[10px]" value={project.bgColor ?? "#0f172a"} onChange={e => set("bgColor", e.target.value)} />
-            </div>
-          </Field>
-        </div>
-      </TabsContent>
-
-      <TabsContent value="perms" className="space-y-2">
-        {(Object.keys(perms) as (keyof AppPermissions)[]).map((k) => (
-          <div key={k} className="flex items-center justify-between p-2 rounded-md border border-border bg-secondary/40">
-            <div className="text-xs font-medium capitalize">{k}</div>
-            <Switch checked={perms[k]} onCheckedChange={(val) => set("permissions", { ...perms, [k]: val })} />
-          </div>
-        ))}
-      </TabsContent>
-    </Tabs>
-  );
-};
-
 const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-  <div className="space-y-1">
-    <Label className="text-[11px] font-medium text-muted-foreground">{label}</Label>
-    {children}
+  <div>
+    <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</Label>
+    <div className="mt-1">{children}</div>
   </div>
 );
 
 const ServerStatus = ({ online }: { online: boolean | null }) => {
-  const c = online === null
-    ? { cls: "border-muted-foreground/30 bg-muted/30 text-muted-foreground", t: "Checking…" }
-    : online
-      ? { cls: "border-primary/40 bg-primary/10 text-primary", t: "Mac server online" }
-      : { cls: "border-destructive/40 bg-destructive/10 text-destructive", t: "Mac server offline" };
-  return (
-    <Badge variant="outline" className={`${c.cls} px-2 py-1 font-mono text-[10px]`}>
-      <span className={`h-1.5 w-1.5 rounded-full mr-1.5 ${online ? "bg-primary animate-pulse-glow" : online === false ? "bg-destructive" : "bg-muted-foreground"}`} />
-      {c.t}
-    </Badge>
-  );
+  if (online === null) return <Badge variant="secondary" className="text-[10px]"><Loader2 className="h-2.5 w-2.5 animate-spin mr-1" />checking</Badge>;
+  if (online) return <Badge className="text-[10px] bg-green-500/15 text-green-400 border-green-500/30"><span className="h-1.5 w-1.5 rounded-full bg-green-400 mr-1.5 animate-pulse" />Mac server online</Badge>;
+  return <Badge variant="destructive" className="text-[10px]"><XCircle className="h-3 w-3 mr-1" />server offline</Badge>;
 };
 
 const BuildPanel = ({ build }: { build: BuildState }) => {
   if (build.status === "idle") return null;
-  if (build.status === "done") {
-    return (
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 text-primary text-xs"><CheckCircle2 className="h-4 w-4" /><span className="font-medium">Build successful</span></div>
-        <Button asChild variant="glow" size="sm" className="w-full">
-          <a href={build.apkUrl} download><Download className="h-3.5 w-3.5" /> Download APK</a>
-        </Button>
-      </div>
-    );
-  }
+  if (build.status === "submitting") return <div className="text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin inline mr-1" />Submitting…</div>;
   if (build.status === "error") {
     return (
-      <div className="space-y-1">
-        <div className="flex items-center gap-2 text-destructive text-xs"><XCircle className="h-4 w-4" /><span className="font-medium">Build failed</span></div>
-        <p className="text-[10px] text-destructive font-mono break-all">{build.message}</p>
+      <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs">
+        <div className="flex items-center gap-1.5 font-semibold text-destructive mb-1.5"><XCircle className="h-3.5 w-3.5" />Build failed</div>
+        <div className="text-muted-foreground">{build.message}</div>
+        {build.logs && <pre className="mt-2 max-h-32 overflow-auto text-[10px] font-mono text-muted-foreground">{build.logs.slice(-15).join("\n")}</pre>}
       </div>
     );
   }
-  const progress = build.status === "building" ? build.progress : 5;
-  return (
-    <div className="space-y-1">
-      <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
-        <div className="h-full bg-gradient-primary transition-all" style={{ width: `${progress}%` }} />
+  if (build.status === "done") {
+    return (
+      <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-3 space-y-2">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-green-400"><CheckCircle2 className="h-3.5 w-3.5" />APK built!</div>
+        <Button asChild variant="hero" size="sm" className="w-full"><a href={build.apkUrl} download><Download className="h-3.5 w-3.5" />Download APK</a></Button>
       </div>
-      <p className="text-[10px] text-muted-foreground font-mono">⏳ Building on Mac…</p>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin inline mr-1" />Building… {build.progress}%</span>
+      </div>
+      <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+        <div className="h-full bg-gradient-primary transition-all" style={{ width: `${build.progress}%` }} />
+      </div>
+      {build.logs.length > 0 && (
+        <pre className="max-h-40 overflow-auto rounded-md border border-border/60 bg-background/60 p-2 text-[10px] font-mono text-muted-foreground">
+          {build.logs.slice(-20).join("\n")}
+        </pre>
+      )}
     </div>
   );
 };
