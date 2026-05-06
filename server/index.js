@@ -20,6 +20,26 @@ import AdmZip from "adm-zip";
 
 const PORT = process.env.PORT || 5174;
 const ROOT = path.join(os.homedir(), ".apkforge");
+const PAIR_FILE = path.join(ROOT, "pairing.json");
+fs.ensureDirSync(ROOT);
+
+// ---------- PAIRING ----------
+// One-time 6-digit code printed on Mac terminal. User enters it in preview /connect.
+// Once paired, preview stores tunnelUrl + token in localStorage and uses for all calls.
+function loadOrCreatePairing() {
+  try {
+    if (fs.existsSync(PAIR_FILE)) return fs.readJsonSync(PAIR_FILE);
+  } catch {}
+  const data = {
+    code: String(Math.floor(100000 + Math.random() * 900000)),
+    token: nanoid(32),
+    createdAt: Date.now(),
+  };
+  fs.writeJsonSync(PAIR_FILE, data, { spaces: 2 });
+  return data;
+}
+const PAIRING = loadOrCreatePairing();
+let TUNNEL_URL = null; // set after cloudflared starts
 const PROJECTS_DIR = path.join(ROOT, "native-projects"); // generated Android Studio projects
 const SOURCES_DIR  = path.join(ROOT, "sources");         // imported user website source (read-only)
 const OUTPUTS_DIR  = path.join(ROOT, "outputs");         // built APKs
