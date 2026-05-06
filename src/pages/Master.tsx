@@ -1,14 +1,16 @@
 import {
   BookOpen, Cpu, Cloud, Smartphone, Code2, Server as ServerIcon,
   CheckCircle2, AlertCircle, AlertTriangle, Github, Package,
-  Wand2, FileCode, Sparkles, ShieldAlert,
+  Wand2, FileCode, Sparkles, ShieldAlert, Terminal, GitBranch, Layers,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import Layout from "@/components/site/Layout";
 
 /**
- * MASTER PROMPT PAGE — v2 (Native pivot)
+ * MASTER PROMPT PAGE — v3 (Native pivot, full reference)
+ * ------------------------------------------------------
  * Permanent reference. AI / user kabhi bhi padh sakta hai.
+ * Sab kuch yahan — Mac setup, server endpoints, Kotlin rules, file structure.
  */
 
 const Master = () => (
@@ -23,7 +25,7 @@ const Master = () => (
         </h1>
       </div>
       <p className="text-muted-foreground mb-8">
-        Permanent reference. AI ya user bhool jaye toh isse padh ke turant yaad aa jayega.
+        Ek hi page pe sab kuch. AI ya user bhool jaye toh isse padh ke turant yaad aa jayega.
       </p>
 
       {/* PIVOT NOTE */}
@@ -36,7 +38,7 @@ const Master = () => (
             </h2>
             <p className="text-foreground leading-relaxed mb-3">
               APKForge ab <strong className="text-yellow-200">Capacitor wrapper nahi banata</strong>.
-              Ab ye <strong className="text-yellow-200">REAL NATIVE Android app</strong> banata hai —
+              Ab <strong className="text-yellow-200">REAL NATIVE Android app</strong> banata hai —
               Kotlin + Jetpack Compose me, scratch se.
             </p>
             <div className="grid sm:grid-cols-2 gap-3 text-sm">
@@ -76,6 +78,48 @@ const Master = () => (
         </p>
       </Card>
 
+      {/* MAC SETUP — fully spelled out */}
+      <Card className="p-6 bg-gradient-card border-border/60 mb-6">
+        <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+          <Terminal className="h-6 w-6 text-primary" /> Mac Setup (one time)
+        </h2>
+        <ol className="space-y-4 text-sm">
+          <li>
+            <div className="font-semibold text-foreground mb-1">1. Install tools:</div>
+            <CodeBlock>{`# Node.js 18+: https://nodejs.org
+brew install openjdk@17 gradle
+brew install --cask android-commandlinetools`}</CodeBlock>
+          </li>
+          <li>
+            <div className="font-semibold text-foreground mb-1">2. Add to ~/.zshrc:</div>
+            <CodeBlock>{`export JAVA_HOME=$(/usr/libexec/java_home -v 17)
+export ANDROID_HOME=$HOME/Library/Android/sdk
+export PATH=$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin`}</CodeBlock>
+            <p className="text-xs text-muted-foreground mt-1">Phir <code className="bg-secondary px-1 rounded">source ~/.zshrc</code></p>
+          </li>
+          <li>
+            <div className="font-semibold text-foreground mb-1">3. Android SDK packages:</div>
+            <CodeBlock>{`sdkmanager "platforms;android-34" "build-tools;34.0.0"`}</CodeBlock>
+            <p className="text-xs text-muted-foreground mt-1">Ya Android Studio → SDK Manager → Platform 34 + Build Tools 34.x install.</p>
+          </li>
+          <li>
+            <div className="font-semibold text-foreground mb-1">4. APKForge install:</div>
+            <CodeBlock>{`git clone <this-repo>
+cd <this-repo>
+npm install
+cd server && npm install && cd ..`}</CodeBlock>
+          </li>
+          <li>
+            <div className="font-semibold text-foreground mb-1">5. Run (2 terminals):</div>
+            <CodeBlock>{`# Terminal 1 — local native build server (port 5174)
+cd server && npm start
+
+# Terminal 2 — web UI (port 8080)
+npm run dev`}</CodeBlock>
+          </li>
+        </ol>
+      </Card>
+
       {/* SOURCE INPUT */}
       <Card className="p-6 bg-gradient-card border-border/60 mb-6">
         <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
@@ -90,12 +134,12 @@ const Master = () => (
           <SourceMethod
             icon={<Package className="h-5 w-5" />}
             title="2. ZIP upload"
-            desc="Builder → Import → ZIP drag-drop → server extract karke same folder me daal deta hai."
+            desc="Builder → Import → ZIP drag-drop → server extract karke same folder me daal deta hai. Max 100MB."
           />
         </div>
       </Card>
 
-      {/* HOW WE DO IT */}
+      {/* WORKFLOW */}
       <Card className="p-6 bg-gradient-card border-border/60 mb-6">
         <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
           <Wand2 className="h-6 w-6 text-primary" /> Step by Step Workflow
@@ -120,6 +164,97 @@ const Master = () => (
             Pehli build 10-15 min (Gradle dependencies download). Baad me 1-2 min.
           </Step>
         </ol>
+      </Card>
+
+      {/* SERVER ENDPOINTS */}
+      <Card className="p-6 bg-gradient-card border-border/60 mb-6">
+        <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+          <ServerIcon className="h-6 w-6 text-primary" /> Mac Server Endpoints (port 5174)
+        </h2>
+        <div className="space-y-2 text-xs font-mono">
+          <Endpoint method="GET"  path="/health" desc="Server status + JAVA_HOME + ANDROID_HOME check" />
+          <Endpoint method="POST" path="/import/github" desc="Body: { url } → git clone → returns { id, dir, framework, deps }" />
+          <Endpoint method="POST" path="/import/zip"    desc="multipart 'file' → extract → returns { id, dir, framework }" />
+          <Endpoint method="GET"  path="/sources" desc="List all imported sources" />
+          <Endpoint method="GET"  path="/source/:id/list?path=" desc="Browse imported source files (read-only)" />
+          <Endpoint method="GET"  path="/source/:id/read?path=" desc="Read a single file (max 2MB)" />
+          <Endpoint method="POST" path="/build" desc="Body: spec with kotlinFiles[] → scaffold + gradle assembleDebug → returns { jobId }" />
+          <Endpoint method="GET"  path="/build/:jobId" desc="Poll job status, logs, progress" />
+          <Endpoint method="GET"  path="/apk/:jobId" desc="Download finished APK" />
+        </div>
+      </Card>
+
+      {/* KOTLIN GENERATION RULES */}
+      <Card className="p-6 bg-gradient-card border-border/60 mb-6">
+        <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+          <FileCode className="h-6 w-6 text-primary" /> Kotlin Generation Rules (AI ke liye)
+        </h2>
+        <div className="space-y-3 text-sm text-muted-foreground">
+          <div>
+            <div className="font-semibold text-foreground mb-1">🎯 Stack to use:</div>
+            <ul className="list-disc list-inside space-y-1">
+              <li>Kotlin 1.9 + Jetpack Compose (BOM 2024.02.00)</li>
+              <li>Material 3 components (<code className="bg-secondary px-1 rounded text-xs">androidx.compose.material3</code>)</li>
+              <li>Navigation Compose for routing (mirror website routes)</li>
+              <li>Retrofit + Gson for API calls (same backend URLs as website)</li>
+              <li>Coil for image loading (if needed)</li>
+              <li>DataStore for local prefs (if website uses localStorage)</li>
+            </ul>
+          </div>
+          <div>
+            <div className="font-semibold text-foreground mb-1">📁 File path convention:</div>
+            <CodeBlock>{`app/src/main/java/<package-as-path>/MainActivity.kt
+app/src/main/java/<package-as-path>/ui/screens/HomeScreen.kt
+app/src/main/java/<package-as-path>/ui/screens/LoginScreen.kt
+app/src/main/java/<package-as-path>/data/api/ApiService.kt
+app/src/main/java/<package-as-path>/data/model/User.kt
+app/src/main/java/<package-as-path>/ui/theme/Theme.kt`}</CodeBlock>
+          </div>
+          <div>
+            <div className="font-semibold text-foreground mb-1">📝 Process:</div>
+            <ol className="list-decimal list-inside space-y-1">
+              <li>Source padho — har route/page list karo (e.g. <code>/login</code>, <code>/home</code>)</li>
+              <li>Har page ke liye ek <code>@Composable</code> screen banao</li>
+              <li>Website ke API calls (fetch/axios) → Retrofit interface me convert</li>
+              <li>Auth state → ViewModel + DataStore</li>
+              <li>NavHost me saare screens register karo</li>
+              <li>Files <code>project.kotlinFiles[]</code> me push karo via <code>patchActiveProject</code></li>
+            </ol>
+          </div>
+          <div>
+            <div className="font-semibold text-foreground mb-1">⚠️ Don't:</div>
+            <ul className="list-disc list-inside space-y-1">
+              <li>WebView use mat karo — sab native Compose</li>
+              <li>JS code transpile mat karo — features samajhke Kotlin se naya likho</li>
+              <li>Backend rewrite mat karo — same API URLs hit karo</li>
+              <li>User ki website ka source NEVER edit</li>
+            </ul>
+          </div>
+        </div>
+      </Card>
+
+      {/* FILE LAYOUT ON MAC */}
+      <Card className="p-6 bg-gradient-card border-border/60 mb-6">
+        <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+          <Layers className="h-6 w-6 text-primary" /> Mac File Layout
+        </h2>
+        <CodeBlock>{`~/.apkforge/
+├── sources/                  # Imported user websites (read-only)
+│   └── <id>/                 # one folder per import
+│       └── (cloned repo or extracted ZIP)
+├── native-projects/          # Generated Android Studio projects
+│   └── com.you.app/
+│       ├── app/
+│       │   ├── build.gradle.kts
+│       │   └── src/main/
+│       │       ├── AndroidManifest.xml
+│       │       ├── java/com/you/app/MainActivity.kt
+│       │       └── res/
+│       ├── build.gradle.kts
+│       ├── settings.gradle.kts
+│       └── gradlew
+└── outputs/                  # Built APKs
+    └── <jobId>-app-v1.0-debug.apk`}</CodeBlock>
       </Card>
 
       {/* WHO DOES WHAT */}
@@ -194,12 +329,30 @@ const Master = () => (
         <div className="grid sm:grid-cols-2 gap-3 text-sm">
           <Tech label="APKForge frontend" value="React + Vite + Tailwind" />
           <Tech label="App language" value="Kotlin 1.9 + Jetpack Compose" />
+          <Tech label="Compose BOM" value="2024.02.00 + Material 3" />
           <Tech label="Min / Target SDK" value="24 / 34" />
           <Tech label="Build system" value="Gradle 8.5 + AGP 8.2" />
           <Tech label="Local server" value="Express on port 5174" />
           <Tech label="Sources storage" value="~/.apkforge/sources/<id>" />
           <Tech label="Native projects" value="~/.apkforge/native-projects/" />
           <Tech label="APK output" value="~/.apkforge/outputs/" />
+          <Tech label="HTTP client (in app)" value="Retrofit 2.9 + Gson" />
+        </div>
+      </Card>
+
+      {/* COMMON COMMANDS USER MAY ASK */}
+      <Card className="p-6 bg-gradient-card border-border/60 mb-6">
+        <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+          <GitBranch className="h-6 w-6 text-primary" /> Common Chat Commands (user → me)
+        </h2>
+        <div className="space-y-2 text-sm">
+          <Cmd>"Imported source padho aur summary do"</Cmd>
+          <Cmd>"Login screen Compose me banao"</Cmd>
+          <Cmd>"Saare screens generate karo aur navigation set karo"</Cmd>
+          <Cmd>"Retrofit interfaces banao mere API endpoints ke liye"</Cmd>
+          <Cmd>"Theme colors update karo website ke hisaab se"</Cmd>
+          <Cmd>"Build error aaya — fix karo"</Cmd>
+          <Cmd>"Permission XYZ add karo"</Cmd>
         </div>
       </Card>
 
@@ -271,6 +424,32 @@ const Tech = ({ label, value }: { label: string; value: string }) => (
   <div className="rounded-lg border border-border/60 p-3 bg-background/40">
     <div className="text-xs text-muted-foreground">{label}</div>
     <div className="font-mono text-sm text-foreground mt-0.5">{value}</div>
+  </div>
+);
+
+const CodeBlock = ({ children }: { children: string }) => (
+  <pre className="rounded-lg bg-background border border-border p-3 overflow-x-auto text-xs font-mono text-foreground">
+    <code>{children}</code>
+  </pre>
+);
+
+const Endpoint = ({ method, path, desc }: { method: string; path: string; desc: string }) => {
+  const colors: Record<string, string> = {
+    GET: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+    POST: "bg-green-500/15 text-green-400 border-green-500/30",
+  };
+  return (
+    <div className="flex items-start gap-2 p-2 rounded border border-border/60 bg-background/40">
+      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${colors[method] || ""}`}>{method}</span>
+      <span className="text-foreground">{path}</span>
+      <span className="text-muted-foreground ml-auto text-[11px]">{desc}</span>
+    </div>
+  );
+};
+
+const Cmd = ({ children }: { children: string }) => (
+  <div className="rounded-lg border border-border/60 bg-background/40 p-2.5 text-xs font-mono text-foreground">
+    💬 {children}
   </div>
 );
 
