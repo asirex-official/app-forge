@@ -10,6 +10,8 @@ import Server from "./pages/Server.tsx";
 import Studio from "./pages/Studio.tsx";
 import Master from "./pages/Master.tsx";
 import Projects from "./pages/Projects.tsx";
+import Files from "./pages/Files.tsx";
+import VisualEditOverlay from "./components/VisualEditOverlay.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -24,6 +26,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/master" element={<Master />} />
           <Route path="/projects" element={<Projects />} />
+          <Route path="/files" element={<Files />} />
           <Route path="/studio" element={<Studio />} />
           <Route path="/builder" element={<Builder />} />
           <Route path="/docs" element={<Docs />} />
@@ -31,6 +34,7 @@ const App = () => (
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
+        <VisualEditOverlay />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
