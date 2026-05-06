@@ -20,6 +20,26 @@ import AdmZip from "adm-zip";
 
 const PORT = process.env.PORT || 5174;
 const ROOT = path.join(os.homedir(), ".apkforge");
+const PAIR_FILE = path.join(ROOT, "pairing.json");
+fs.ensureDirSync(ROOT);
+
+// ---------- PAIRING ----------
+// One-time 6-digit code printed on Mac terminal. User enters it in preview /connect.
+// Once paired, preview stores tunnelUrl + token in localStorage and uses for all calls.
+function loadOrCreatePairing() {
+  try {
+    if (fs.existsSync(PAIR_FILE)) return fs.readJsonSync(PAIR_FILE);
+  } catch {}
+  const data = {
+    code: String(Math.floor(100000 + Math.random() * 900000)),
+    token: nanoid(32),
+    createdAt: Date.now(),
+  };
+  fs.writeJsonSync(PAIR_FILE, data, { spaces: 2 });
+  return data;
+}
+const PAIRING = loadOrCreatePairing();
+let TUNNEL_URL = null; // set after cloudflared starts
 const PROJECTS_DIR = path.join(ROOT, "native-projects"); // generated Android Studio projects
 const SOURCES_DIR  = path.join(ROOT, "sources");         // imported user website source (read-only)
 const OUTPUTS_DIR  = path.join(ROOT, "outputs");         // built APKs
@@ -31,6 +51,14 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "20mb" }));
 
+// Auth middleware — every request (except /health, /pair) must carry pairing token
+app.use((req, res, next) => {
+  if (req.path === "/health" || req.path === "/pair" || req.path.startsWith("/apk/")) return next();
+  const tok = req.headers["x-apkforge-token"] || req.query.token;
+  if (tok !== PAIRING.token) return res.status(401).json({ error: "Unauthorized — pair your Mac at /connect" });
+  next();
+});
+
 const upload = multer({ dest: path.join(os.tmpdir(), "apkforge-uploads") });
 
 const jobs = new Map(); // jobId -> { status, logs, progress, error?, apkPath? }
@@ -38,13 +66,19 @@ const jobs = new Map(); // jobId -> { status, logs, progress, error?, apkPath? }
 app.get("/health", (_, res) => {
   res.json({
     ok: true,
-    version: "0.2.0-native",
+    version: "0.3.0-native",
     mode: "native-kotlin",
+    tunnelUrl: TUNNEL_URL,
     javaHome: process.env.JAVA_HOME || null,
     androidHome: process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || null,
-    projectsDir: PROJECTS_DIR,
-    sourcesDir: SOURCES_DIR,
   });
+});
+
+// Pair: client posts { code }, gets back token + tunnel info if code matches
+app.post("/pair", (req, res) => {
+  const { code } = req.body ?? {};
+  if (String(code) !== PAIRING.code) return res.status(403).json({ error: "Wrong pairing code" });
+  res.json({ token: PAIRING.token, tunnelUrl: TUNNEL_URL, version: "0.3.0-native" });
 });
 
 // ---------- SOURCE IMPORT (GitHub clone or ZIP upload) ----------
@@ -212,7 +246,42 @@ app.listen(PORT, () => {
   console.log(`   Sources:  ${SOURCES_DIR}`);
   console.log(`   JAVA_HOME: ${process.env.JAVA_HOME || "(not set!)"}`);
   console.log(`   ANDROID_HOME: ${process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || "(not set!)"}\n`);
+  startCloudflaredTunnel();
 });
+
+// ---------- CLOUDFLARE TUNNEL (free, no signup) ----------
+function startCloudflaredTunnel() {
+  console.log("🌩  Starting Cloudflare Tunnel (free, no account)…");
+  const child = spawn("cloudflared", ["tunnel", "--url", `http://localhost:${PORT}`, "--no-autoupdate"], {
+    env: process.env, shell: false,
+  });
+  const onData = (buf) => {
+    const s = buf.toString();
+    process.stdout.write(s);
+    const m = s.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/i);
+    if (m && !TUNNEL_URL) { TUNNEL_URL = m[0]; printPairingBanner(); }
+  };
+  child.stdout.on("data", onData);
+  child.stderr.on("data", onData);
+  child.on("error", (e) => {
+    console.error("\n❌ cloudflared not found. Install: brew install cloudflared\n", e.message);
+    printPairingBanner();
+  });
+  child.on("close", (code) => console.log(`cloudflared exited (${code}). Restart server to retry.`));
+}
+
+function printPairingBanner() {
+  const url = TUNNEL_URL || `http://localhost:${PORT}`;
+  console.log("\n" + "═".repeat(60));
+  console.log("  🔗  APKForge — Pair your Mac with the Lovable preview");
+  console.log("═".repeat(60));
+  console.log(`  Tunnel URL :  ${url}`);
+  console.log(`  Pair Code  :  ${PAIRING.code}`);
+  console.log("");
+  console.log("  👉  Open the preview, go to /connect, enter the code.");
+  console.log("      You only do this ONCE. Then everything is automatic.");
+  console.log("═".repeat(60) + "\n");
+}
 
 // ---------- NATIVE BUILD PIPELINE ----------
 

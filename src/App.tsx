@@ -12,6 +12,7 @@ import Master from "./pages/Master.tsx";
 import Projects from "./pages/Projects.tsx";
 import Files from "./pages/Files.tsx";
 import Admin from "./pages/Admin.tsx";
+import Connect from "./pages/Connect.tsx";
 import VisualEditOverlay from "./components/VisualEditOverlay.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -33,6 +34,7 @@ const App = () => (
           <Route path="/builder" element={<Builder />} />
           <Route path="/docs" element={<Docs />} />
           <Route path="/server" element={<Server />} />
+          <Route path="/connect" element={<Connect />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
