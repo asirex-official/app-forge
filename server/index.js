@@ -51,6 +51,14 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "20mb" }));
 
+// Auth middleware — every request (except /health, /pair) must carry pairing token
+app.use((req, res, next) => {
+  if (req.path === "/health" || req.path === "/pair" || req.path.startsWith("/apk/")) return next();
+  const tok = req.headers["x-apkforge-token"] || req.query.token;
+  if (tok !== PAIRING.token) return res.status(401).json({ error: "Unauthorized — pair your Mac at /connect" });
+  next();
+});
+
 const upload = multer({ dest: path.join(os.tmpdir(), "apkforge-uploads") });
 
 const jobs = new Map(); // jobId -> { status, logs, progress, error?, apkPath? }
@@ -58,13 +66,19 @@ const jobs = new Map(); // jobId -> { status, logs, progress, error?, apkPath? }
 app.get("/health", (_, res) => {
   res.json({
     ok: true,
-    version: "0.2.0-native",
+    version: "0.3.0-native",
     mode: "native-kotlin",
+    tunnelUrl: TUNNEL_URL,
     javaHome: process.env.JAVA_HOME || null,
     androidHome: process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || null,
-    projectsDir: PROJECTS_DIR,
-    sourcesDir: SOURCES_DIR,
   });
+});
+
+// Pair: client posts { code }, gets back token + tunnel info if code matches
+app.post("/pair", (req, res) => {
+  const { code } = req.body ?? {};
+  if (String(code) !== PAIRING.code) return res.status(403).json({ error: "Wrong pairing code" });
+  res.json({ token: PAIRING.token, tunnelUrl: TUNNEL_URL, version: "0.3.0-native" });
 });
 
 // ---------- SOURCE IMPORT (GitHub clone or ZIP upload) ----------
