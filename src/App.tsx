@@ -9,6 +9,7 @@ import Docs from "./pages/Docs.tsx";
 import Server from "./pages/Server.tsx";
 import Studio from "./pages/Studio.tsx";
 import Master from "./pages/Master.tsx";
+import Projects from "./pages/Projects.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/master" element={<Master />} />
+          <Route path="/projects" element={<Projects />} />
           <Route path="/studio" element={<Studio />} />
           <Route path="/builder" element={<Builder />} />
           <Route path="/docs" element={<Docs />} />
