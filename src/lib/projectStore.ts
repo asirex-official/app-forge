@@ -39,6 +39,12 @@ export type AppPermissions = {
   storage: boolean;
 };
 
+/** AI-generated Kotlin file to be written into the native project */
+export type KotlinFile = {
+  path: string;     // e.g. "app/src/main/java/com/you/app/MainActivity.kt"
+  content: string;
+};
+
 export type BackendKey = {
   id: string;
   name: string;   // SUPABASE_URL etc.
@@ -63,17 +69,27 @@ export type TrackedProject = {
   buildCommand?: string;
   outputDir?: string;
 
-  // === APK wrapper config (NEW — unified with Builder) ===
+  // === Native Android app config ===
   versionName?: string;        // "1.0.0"
   versionCode?: number;        // 1
   themeColor?: string;         // "#22c55e"
-  bgColor?: string;            // "#0f172a"
+  bgColor?: string;            // legacy — unused in native
   iconDataUrl?: string | null; // base64 icon
-  permissions?: AppPermissions;
+  permissions?: AppPermissions;             // legacy (Capacitor)
+  androidPermissions?: string[];            // android.permission.* fully-qualified
   buildType?: "debug" | "release";
-  sourceWebsiteType?: "url" | "html"; // for builder preview
-  htmlContent?: string;        // custom HTML if not URL
-  backendKeys?: BackendKey[];  // API keys / secrets (browser only)
+  sourceWebsiteType?: "url" | "html";       // legacy
+  htmlContent?: string;                     // legacy
+  backendKeys?: BackendKey[];
+
+  // === Imported source code (lives on user's Mac) ===
+  sourceImportId?: string;     // id under ~/.apkforge/sources/<id>
+  sourceImportPath?: string;   // full path on Mac
+  sourceFramework?: string;    // detected: "vite-react" | "next" | etc.
+
+  // === AI-generated Kotlin/Compose code ===
+  kotlinFiles?: KotlinFile[];        // files to overlay into native project
+  kotlinGradleDeps?: string[];       // extra gradle dependencies
 
   status: "planning" | "building" | "ready" | "shipped";
   tasks: ProjectTask[];
